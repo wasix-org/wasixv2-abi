@@ -5981,8 +5981,9 @@ interface types {
     ws-ypixel: u16,
   }
 
-  /// `ioctl` requests for terminals, sockets and timerfd
-  /// (`asm-generic/ioctls.h`, `asm-generic/sockios.h`, `linux/sockios.h`, `linux/timerfd.h`).
+  /// `ioctl` requests for terminals, sockets, timerfd and namespace files
+  /// (`asm-generic/ioctls.h`, `asm-generic/sockios.h`, `linux/sockios.h`, `linux/timerfd.h`,
+  /// `linux/nsfs.h`).
   /// @repr(u32)
   /// @c(unsigned)
   enum ioctl-request {
@@ -6276,6 +6277,14 @@ interface types {
     siocprotoprivate,
     /// @value(35312)
     siocdevprivate,
+    /// @value(0xb701)
+    ns-get-userns,
+    /// @value(0xb702)
+    ns-get-parent,
+    /// @value(0xb703)
+    ns-get-nstype,
+    /// @value(0xb704)
+    ns-get-owner-uid,
     /// @value(0x40045431)
     tiocsptlck,
     /// @value(0x40045436)
