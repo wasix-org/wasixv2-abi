@@ -44,7 +44,6 @@ pub fn generate(model: &Model, source: &str) -> Result<String> {
     g.out.push_str(&header(source));
     g.prelude(&methods, &types);
     g.imports(&methods);
-    g.out.push_str(CALLER_PARTS);
     for m in &methods {
         g.shim(m);
     }
@@ -63,12 +62,12 @@ impl Gen<'_> {
     }
 
     fn prelude(&mut self, methods: &[Method], types: &std::collections::BTreeSet<String>) {
-        self.line("\nuse std::sync::Arc;\n");
+        self.line("");
         if !types.is_empty() {
             let types: Vec<&str> = types.iter().map(String::as_str).collect();
             let _ = writeln!(self.out, "use wasixv2_abi::{{{}}};", types.join(", "));
         }
-        let mut items = vec!["Caller", "Control", "Syscalls", "TaskId"];
+        let mut items = vec!["Caller", "Control", "Syscalls"];
         items.extend(
             [false, true]
                 .into_iter()
@@ -80,7 +79,7 @@ impl Gen<'_> {
             "use wasmer::{AsyncFunctionEnvMut, Function, FunctionEnv, Imports, Module, RuntimeError, Store};",
         );
         self.line("");
-        self.line("use crate::{ExecEnv, memory::GuestMemory, return_to_guest};");
+        self.line("use crate::{ExecEnv, caller_parts, memory::GuestMemory, return_to_guest};");
         let module = methods.first().map_or("", |m| m.module);
         self.line("");
         self.line("/// Name of the import module that holds every syscall and extension.");
@@ -205,13 +204,6 @@ impl Gen<'_> {
     }
 }
 
-const CALLER_PARTS: &str = r#"
-async fn caller_parts<S: 'static>(env: &AsyncFunctionEnvMut<ExecEnv<S>>) -> (Arc<S>, TaskId) {
-    let env = env.read().await;
-    (env.data().syscalls.clone(), env.data().task)
-}
-"#;
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -246,7 +238,8 @@ mod tests {
             "if let Some(ret) = return_to_guest(&env, &*syscalls, task, ret).await { return ret; }\n",
             "async fn lseek<S>(env: AsyncFunctionEnvMut<ExecEnv<S>>, fd: i32, offset: i64, whence: i32) -> Result<i64, RuntimeError>",
             "use wasixv2_abi::{Cstr, Fd};",
-            "use wasixv2_syscalls::{Caller, Control, Syscalls, TaskId, UserSliceMut};",
+            "use wasixv2_syscalls::{Caller, Control, Syscalls, UserSliceMut};",
+            "use crate::{ExecEnv, caller_parts, memory::GuestMemory, return_to_guest};",
             "use wasmer::{AsyncFunctionEnvMut, Function, FunctionEnv, Imports, Module, RuntimeError, Store};",
         ] {
             assert!(out.contains(want), "missing `{want}` in:\n{out}");
