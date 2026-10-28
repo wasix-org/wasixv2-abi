@@ -6754,6 +6754,65 @@ interface types {
     mnt-ns-id: u64,
   }
 
+  /// The fixed part of `statmount`'s result (`struct statmount`, UAPI `linux/mount.h`). The
+  /// strings follow it in the caller's buffer (`str[]`); each `[str]` field is the offset of its
+  /// NUL-terminated string from there. `size` is the whole result, strings included. `mask`
+  /// says which fields were filled (`statmount-mask`).
+  /// @kernel-only
+  /// @size(512)
+  /// @align(8)
+  record statmount {
+    size: u32,
+    /// [str] The mount's and the superblock's options, comma separated (`STATMOUNT_MNT_OPTS`).
+    mnt-opts: u32,
+    mask: u64,
+    sb-dev-major: u32,
+    sb-dev-minor: u32,
+    sb-magic: u64,
+    /// `SB_RDONLY`, `SB_SYNCHRONOUS`, `SB_DIRSYNC`, `SB_LAZYTIME`.
+    sb-flags: u32,
+    /// [str]
+    fs-type: u32,
+    /// The mount's unique id (`STATX_MNT_ID_UNIQUE`).
+    mnt-id: u64,
+    /// The parent's unique id; its own for a namespace root.
+    mnt-parent-id: u64,
+    /// The ids `/proc/<pid>/mountinfo` shows.
+    mnt-id-old: u32,
+    mnt-parent-id-old: u32,
+    /// `MOUNT_ATTR_*`.
+    mnt-attr: u64,
+    /// `MS_SHARED`, `MS_SLAVE`, `MS_PRIVATE`, `MS_UNBINDABLE`.
+    mnt-propagation: u64,
+    mnt-peer-group: u64,
+    mnt-master: u64,
+    propagate-from: u64,
+    /// [str] The mount's root, relative to its filesystem's root.
+    mnt-root: u32,
+    /// [str] The mountpoint, relative to the caller's root.
+    mnt-point: u32,
+    mnt-ns-id: u64,
+    /// [str]
+    fs-subtype: u32,
+    /// [str]
+    sb-source: u32,
+    opt-num: u32,
+    /// [str] `opt-num` NUL-terminated filesystem options.
+    opt-array: u32,
+    opt-sec-num: u32,
+    /// [str]
+    opt-sec-array: u32,
+    supported-mask: u64,
+    mnt-uidmap-num: u32,
+    /// [str]
+    mnt-uidmap: u32,
+    mnt-gidmap-num: u32,
+    /// [str]
+    mnt-gidmap: u32,
+    /// @c-name(__spare2)
+    spare2: list<u64, 43>,
+  }
+
   /// `listns` request (`struct ns_id_req`).
   /// @kernel-only
   /// @size(32)
@@ -6950,6 +7009,97 @@ interface types {
     fspick-no-automount,
     /// @value(0x8)
     fspick-empty-path,
+  }
+
+  /// `fsconfig` commands (`FSCONFIG_*`, UAPI `linux/mount.h`).
+  /// @repr(u32)
+  enum fsconfig-command {
+    /// @value(0)
+    fsconfig-set-flag,
+    /// @value(1)
+    fsconfig-set-string,
+    /// @value(2)
+    fsconfig-set-binary,
+    /// @value(3)
+    fsconfig-set-path,
+    /// @value(4)
+    fsconfig-set-path-empty,
+    /// @value(5)
+    fsconfig-set-fd,
+    /// @value(6)
+    fsconfig-cmd-create,
+    /// @value(7)
+    fsconfig-cmd-reconfigure,
+    /// @value(8)
+    fsconfig-cmd-create-excl,
+  }
+
+  /// `statmount` request and result mask (`STATMOUNT_*`, UAPI `linux/mount.h`): `mnt_id_req.param`
+  /// and `statmount.mask`.
+  /// @repr(u64)
+  flags statmount-mask {
+    /// @value(0x1)
+    statmount-sb-basic,
+    /// @value(0x2)
+    statmount-mnt-basic,
+    /// @value(0x4)
+    statmount-propagate-from,
+    /// @value(0x8)
+    statmount-mnt-root,
+    /// @value(0x10)
+    statmount-mnt-point,
+    /// @value(0x20)
+    statmount-fs-type,
+    /// @value(0x40)
+    statmount-mnt-ns-id,
+    /// @value(0x80)
+    statmount-mnt-opts,
+    /// @value(0x100)
+    statmount-fs-subtype,
+    /// @value(0x200)
+    statmount-sb-source,
+    /// @value(0x400)
+    statmount-opt-array,
+    /// @value(0x800)
+    statmount-opt-sec-array,
+    /// @value(0x1000)
+    statmount-supported-mask,
+    /// @value(0x2000)
+    statmount-mnt-uidmap,
+    /// @value(0x4000)
+    statmount-mnt-gidmap,
+  }
+
+  /// `statmount` flags (UAPI `linux/mount.h`).
+  /// @repr(u32)
+  flags statmount-flags {
+    /// `mnt_id_req.mnt_fd` names the mount instead of `mnt_id`.
+    /// @value(0x1)
+    statmount-by-fd,
+  }
+
+  /// `listmount` flags (UAPI `linux/mount.h`).
+  /// @repr(u32)
+  flags listmount-flags {
+    /// @value(0x1)
+    listmount-reverse,
+  }
+
+  /// `mnt_id_req.mnt_id` values with a meaning of their own (UAPI `linux/mount.h`).
+  /// @repr(u64)
+  enum listmount-mnt-id {
+    /// The namespace's root mount.
+    /// @value(0xffffffffffffffff)
+    lsmt-root,
+  }
+
+  /// `mnt_id_req.size` of each published version (`MNT_ID_REQ_SIZE_VER*`, UAPI `linux/mount.h`).
+  /// @repr(u32)
+  enum mnt-id-req-size {
+    /// @value(24)
+    mnt-id-req-size-ver0,
+    /// @value(32)
+    mnt-id-req-size-ver1,
   }
 
   // ==== Dynamic linking (wasixv2 extensions) ====

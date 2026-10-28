@@ -1867,8 +1867,7 @@ interface syscalls {
 
   /// Kernel: `sys_statmount(const struct mnt_id_req * req, struct statmount * buf, size_t bufsize,
   /// unsigned int flags)`.
-  /// variable-size struct statmount.
-  /// Untyped: buf: `struct statmount` (512+ bytes, size-versioned, not modelled).
+  /// `buf` holds a `statmount` record followed by its strings, `bufsize` bytes in all.
   /// @nr(457)
   statmount: func(req: const-mnt-id-req-ptr, buf: void-ptr, bufsize: usize, %flags: u32) -> slong;
 
