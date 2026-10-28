@@ -4560,6 +4560,26 @@ interface types {
     ipv6mr-ifindex: s32,
   }
 
+  /// An error-queue entry (`struct sock_extended_err`, UAPI `linux/errqueue.h`): the payload of
+  /// the `IP_RECVERR`/`IPV6_RECVERR` control message `recvmsg(MSG_ERRQUEUE)` returns, followed
+  /// by the offender's `sockaddr_in`/`sockaddr_in6` (`SO_EE_OFFENDER`). `ee-data` shares its
+  /// 4 bytes with `struct sock_ee_data_rfc4884` in the kernel's union.
+  /// @kernel-only
+  /// @size(16)
+  /// @align(4)
+  record sock-extended-err {
+    ee-errno: u32,
+    /// `so-ee-origin`.
+    ee-origin: u8,
+    /// The ICMP type for ICMP origins.
+    ee-type: u8,
+    /// The ICMP code for ICMP origins.
+    ee-code: u8,
+    ee-pad: u8,
+    ee-info: u32,
+    ee-data: u32,
+  }
+
   /// Address/protocol families (`AF_*`, `PF_*`).
   /// Not in the UAPI headers; values follow the kernel's `include/linux/socket.h`.
   /// @repr(s32)
@@ -5456,6 +5476,27 @@ interface types {
     ipv6-prefer-src-home,
     /// @value(0x800)
     ipv6-prefer-src-noncga,
+  }
+
+  /// `sock_extended_err.ee_origin` (`SO_EE_ORIGIN_*`, UAPI `linux/errqueue.h`).
+  /// @repr(u8)
+  enum so-ee-origin {
+    /// @value(0)
+    so-ee-origin-none,
+    /// @value(1)
+    so-ee-origin-local,
+    /// @value(2)
+    so-ee-origin-icmp,
+    /// @value(3)
+    so-ee-origin-icmp6,
+    /// @value(4)
+    so-ee-origin-txstatus,
+    /// @value(4)
+    so-ee-origin-timestamping,
+    /// @value(5)
+    so-ee-origin-zerocopy,
+    /// @value(6)
+    so-ee-origin-txtime,
   }
 
   /// IPv6 routing header types.
