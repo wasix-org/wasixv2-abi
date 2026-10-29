@@ -7976,6 +7976,137 @@ interface types {
     lsm-flag-single,
   }
 
+  // ==== Tracing and introspection: ptrace, kcmp, ioprio ====
+
+  /// `PTRACE_GET_SYSCALL_INFO` at a syscall-entry stop (`linux/ptrace.h`).
+  /// @kernel-only
+  /// @size(56)
+  /// @align(8)
+  record ptrace-syscall-info-entry {
+    nr: u64,
+    args: list<u64, 6>,
+  }
+
+  /// `PTRACE_GET_SYSCALL_INFO` at a syscall-exit stop (`linux/ptrace.h`).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(8)
+  record ptrace-syscall-info-exit {
+    rval: s64,
+    is-error: u8,
+    reserved: list<u8, 7>,
+  }
+
+  /// `PTRACE_GET_SYSCALL_INFO` at a `PTRACE_EVENT_SECCOMP` stop (`linux/ptrace.h`).
+  /// @kernel-only
+  /// @size(64)
+  /// @align(8)
+  record ptrace-syscall-info-seccomp {
+    nr: u64,
+    args: list<u64, 6>,
+    ret-data: u32,
+    reserved2: u32,
+  }
+
+  /// What `ptrace_syscall_info` holds for its `op`.
+  /// @kernel-only
+  /// @union
+  /// @size(64)
+  /// @align(8)
+  record ptrace-syscall-info-data {
+    entry: ptrace-syscall-info-entry,
+    exit: ptrace-syscall-info-exit,
+    seccomp: ptrace-syscall-info-seccomp,
+  }
+
+  /// `PTRACE_GET_SYSCALL_INFO` result (`struct ptrace_syscall_info`). wasm has no program
+  /// counter: `instruction-pointer` is 0, `stack-pointer` the shadow stack pointer.
+  /// @kernel-only
+  /// @size(88)
+  /// @align(8)
+  record ptrace-syscall-info {
+    op: u8,
+    reserved: u8,
+    %flags: u16,
+    arch: u32,
+    instruction-pointer: u64,
+    stack-pointer: u64,
+    data: ptrace-syscall-info-data,
+  }
+
+  /// `PTRACE_PEEKSIGINFO` arguments (`struct ptrace_peeksiginfo_args`).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(8)
+  record ptrace-peeksiginfo-args {
+    off: u64,
+    %flags: u32,
+    nr: s32,
+  }
+
+  /// `kcmp` comparison types (`enum kcmp_type`, `linux/kcmp.h`).
+  /// @repr(s32)
+  /// @c(int)
+  enum kcmp-type {
+    /// @value(0)
+    kcmp-file,
+    /// @value(1)
+    kcmp-vm,
+    /// @value(2)
+    kcmp-files,
+    /// @value(3)
+    kcmp-fs,
+    /// @value(4)
+    kcmp-sighand,
+    /// @value(5)
+    kcmp-io,
+    /// @value(6)
+    kcmp-sysvsem,
+    /// @value(7)
+    kcmp-epoll-tfd,
+  }
+
+  /// `KCMP_EPOLL_TFD` slot (`struct kcmp_epoll_slot`, `linux/kcmp.h`).
+  /// @kernel-only
+  /// @size(12)
+  /// @align(4)
+  record kcmp-epoll-slot {
+    efd: u32,
+    tfd: u32,
+    toff: u32,
+  }
+
+  /// @ptr(const kcmp-epoll-slot)
+  type const-kcmp-epoll-slot-ptr = uptr;
+
+  /// I/O scheduling classes (`IOPRIO_CLASS_*`, `linux/ioprio.h`).
+  /// @repr(s32)
+  /// @c(int)
+  enum ioprio-class {
+    /// @value(0)
+    ioprio-class-none,
+    /// @value(1)
+    ioprio-class-rt,
+    /// @value(2)
+    ioprio-class-be,
+    /// @value(3)
+    ioprio-class-idle,
+    /// @value(7)
+    ioprio-class-invalid,
+  }
+
+  /// `ioprio_get`/`ioprio_set` targets (`IOPRIO_WHO_*`, `linux/ioprio.h`).
+  /// @repr(s32)
+  /// @c(int)
+  enum ioprio-who {
+    /// @value(1)
+    ioprio-who-process,
+    /// @value(2)
+    ioprio-who-pgrp,
+    /// @value(3)
+    ioprio-who-user,
+  }
+
   // ==== Checkpointing (wasixv2 extensions) ====
 
   /// What `stack-save` records for `stack-restore` (v1's `__wasi_stack_snapshot_t` layout).
