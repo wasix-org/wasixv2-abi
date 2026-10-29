@@ -4221,6 +4221,18 @@ interface types {
     at-minsigstksz,
   }
 
+  /// `AT_FLAGS` bits of the startup block (`linux/binfmts.h`): how a binfmt_misc format
+  /// invoked the interpreter.
+  /// @repr(u32)
+  flags at-flags-bits {
+    /// `P`: `argv[0]` is the caller's, after the binary's name.
+    /// @value(0x1)
+    at-flags-preserve-argv0,
+    /// `T`: the arguments are the caller's, and the binary is `AT_EXECFD`.
+    /// @value(0x2)
+    at-flags-transparent-interp,
+  }
+
   // ==== Futexes ====
 
   /// `futex_waitv`/`futex_requeue` waiter (`struct futex_waitv`).
