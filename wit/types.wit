@@ -6319,6 +6319,194 @@ interface types {
     tcp-receive-zerocopy-flag-tlb-clean-hint,
   }
 
+  // ==== Socket families: vsock and sock_diag ====
+
+  /// `AF_VSOCK` socket address (`struct sockaddr_vm`, UAPI `linux/vm_sockets.h`, which musl
+  /// does not have).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(4)
+  record sockaddr-vm {
+    svm-family: sa-family,
+    svm-reserved1: u16,
+    svm-port: u32,
+    svm-cid: u32,
+    /// `vmaddr-flags`.
+    svm-flags: u8,
+    svm-zero: list<u8, 3>,
+  }
+
+  /// Well-known vsock context identifiers and ports (`VMADDR_*`).
+  /// @repr(u32)
+  enum vmaddr {
+    /// @value(0)
+    vmaddr-cid-hypervisor,
+    /// @value(1)
+    vmaddr-cid-local,
+    /// @value(2)
+    vmaddr-cid-host,
+    /// @value(0xffffffff)
+    vmaddr-cid-any,
+    /// @value(0xffffffff)
+    vmaddr-port-any,
+  }
+
+  /// `svm_flags` bits.
+  /// @repr(u8)
+  flags vmaddr-flags {
+    /// @value(0x1)
+    vmaddr-flag-to-host,
+  }
+
+  /// `AF_VSOCK`-level socket options (`SO_VM_SOCKETS_*`).
+  /// @repr(s32)
+  enum vsock-option {
+    /// @value(0)
+    so-vm-sockets-buffer-size,
+    /// @value(1)
+    so-vm-sockets-buffer-min-size,
+    /// @value(2)
+    so-vm-sockets-buffer-max-size,
+    /// @value(3)
+    so-vm-sockets-peer-host-vm-id,
+    /// @value(5)
+    so-vm-sockets-trusted,
+    /// @value(6)
+    so-vm-sockets-connect-timeout-old,
+    /// @value(7)
+    so-vm-sockets-nonblock-txrx,
+    /// @value(8)
+    so-vm-sockets-connect-timeout-new,
+  }
+
+  /// `sock_diag` request header (`struct sock_diag_req`, UAPI `linux/sock_diag.h`).
+  /// @kernel-only
+  /// @size(2)
+  /// @align(1)
+  record sock-diag-req {
+    sdiag-family: u8,
+    sdiag-protocol: u8,
+  }
+
+  /// A socket's identity in `inet_diag` (`struct inet_diag_sockid`, UAPI `linux/inet_diag.h`).
+  /// Ports and addresses are big-endian; an IPv4 address takes the first word of its array.
+  /// @kernel-only
+  /// @size(48)
+  /// @align(4)
+  record inet-diag-sockid {
+    idiag-sport: u16,
+    idiag-dport: u16,
+    idiag-src: list<u32, 4>,
+    idiag-dst: list<u32, 4>,
+    idiag-if: u32,
+    idiag-cookie: list<u32, 2>,
+  }
+
+  /// `SOCK_DIAG_BY_FAMILY` request for `AF_INET`/`AF_INET6` (`struct inet_diag_req_v2`).
+  /// @kernel-only
+  /// @size(56)
+  /// @align(4)
+  record inet-diag-req-v2 {
+    sdiag-family: u8,
+    sdiag-protocol: u8,
+    /// Bits `1 << (INET_DIAG_* - 1)` of the attributes to add.
+    idiag-ext: u8,
+    pad: u8,
+    /// Bits `1 << TCP_*` of the states to dump.
+    idiag-states: u32,
+    id: inet-diag-sockid,
+  }
+
+  /// The legacy `TCPDIAG_GETSOCK`/`DCCPDIAG_GETSOCK` request (`struct inet_diag_req`).
+  /// @kernel-only
+  /// @size(60)
+  /// @align(4)
+  record inet-diag-req {
+    idiag-family: u8,
+    idiag-src-len: u8,
+    idiag-dst-len: u8,
+    idiag-ext: u8,
+    id: inet-diag-sockid,
+    idiag-states: u32,
+    idiag-dbs: u32,
+  }
+
+  /// One socket of an `inet_diag` dump (`struct inet_diag_msg`).
+  /// @kernel-only
+  /// @size(72)
+  /// @align(4)
+  record inet-diag-msg {
+    idiag-family: u8,
+    idiag-state: u8,
+    idiag-timer: u8,
+    idiag-retrans: u8,
+    id: inet-diag-sockid,
+    idiag-expires: u32,
+    idiag-rqueue: u32,
+    idiag-wqueue: u32,
+    idiag-uid: u32,
+    idiag-inode: u32,
+  }
+
+  /// `INET_DIAG_MEMINFO` attribute (`struct inet_diag_meminfo`).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(4)
+  record inet-diag-meminfo {
+    idiag-rmem: u32,
+    idiag-wmem: u32,
+    idiag-fmem: u32,
+    idiag-tmem: u32,
+  }
+
+  /// `SOCK_DIAG_BY_FAMILY` request for `AF_UNIX` (`struct unix_diag_req`, UAPI
+  /// `linux/unix_diag.h`).
+  /// @kernel-only
+  /// @size(24)
+  /// @align(4)
+  record unix-diag-req {
+    sdiag-family: u8,
+    sdiag-protocol: u8,
+    pad: u16,
+    /// Bits `1 << TCP_*` of the states to dump.
+    udiag-states: u32,
+    udiag-ino: u32,
+    /// `UDIAG_SHOW_*` bits.
+    udiag-show: u32,
+    udiag-cookie: list<u32, 2>,
+  }
+
+  /// One socket of a `unix_diag` dump (`struct unix_diag_msg`).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(4)
+  record unix-diag-msg {
+    udiag-family: u8,
+    udiag-type: u8,
+    udiag-state: u8,
+    pad: u8,
+    udiag-ino: u32,
+    udiag-cookie: list<u32, 2>,
+  }
+
+  /// `UNIX_DIAG_RQLEN` attribute (`struct unix_diag_rqlen`).
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record unix-diag-rqlen {
+    udiag-rqueue: u32,
+    udiag-wqueue: u32,
+  }
+
+  /// `UNIX_DIAG_VFS` attribute (`struct unix_diag_vfs`).
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record unix-diag-vfs {
+    udiag-vfs-ino: u32,
+    udiag-vfs-dev: u32,
+  }
+
   // ==== System V IPC ====
 
   /// IPC permissions (asm-generic `struct ipc64_perm`). The zero-length `__pad1` is omitted.
@@ -7797,6 +7985,9 @@ interface types {
     /// `SECCOMP_IOCTL_NOTIF_SET_FLAGS`: `_IOW('!', 4, __u64)`.
     /// @value(0x40082104)
     seccomp-ioctl-notif-set-flags,
+    /// `/dev/vsock`: the local CID (`_IO(7, 0xb9)`).
+    /// @value(0x7b9)
+    ioctl-vm-sockets-get-local-cid,
   }
 
   /// `_IOC_TYPE` bytes of ioctl request families.
