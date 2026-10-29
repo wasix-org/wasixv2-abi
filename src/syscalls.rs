@@ -145,7 +145,9 @@ impl Gen {
         self.line("}");
         self.line("}");
         self.line("");
-        self.line("/// The arguments as riscv32 passes them in `a0` to `a5`, each zero-extended from its");
+        self.line(
+            "/// The arguments as riscv32 passes them in `a0` to `a5`, each zero-extended from its",
+        );
         self.line("/// 32-bit register as `seccomp_data.args` holds them: a 64-bit argument riscv32 splits");
         self.line("/// (`@merged-i64`) takes two registers, a pointer and length pair two, and an extension's");
         self.line("/// arguments past the sixth are left out.");
