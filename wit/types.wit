@@ -10095,4 +10095,112 @@ interface types {
 
   /// @ptr(const stack-snapshot)
   type const-stack-snapshot-ptr = uptr;
+  // ==== Q5 network control and SCTP transport options ====
+
+  /// Generic netlink header, include/uapi/linux/genetlink.h.
+  /// @c(struct genlmsghdr)
+  /// @kernel-only
+  /// @size(4)
+  /// @align(2)
+  record genlmsghdr { cmd: u8, version: u8, reserved: u16 }
+
+  /// SCTP peer parameters, include/uapi/linux/sctp.h. Packed fields after pathmaxrxt
+  /// are byte arrays, as with landlock-path-beneath-attr, to preserve their unaligned offsets.
+  /// @kernel-only
+  /// @size(156)
+  /// @align(4)
+  record sctp-paddrparams {
+    spp-assoc-id: s32,
+    spp-address: sockaddr-storage,
+    spp-hbinterval: u32,
+    spp-pathmaxrxt: u16,
+    spp-pathmtu: list<u8, 4>,
+    spp-sackdelay: list<u8, 4>,
+    spp-flags: list<u8, 4>,
+    spp-ipv6-flowlabel: list<u8, 4>,
+    spp-dscp: u8,
+  }
+
+  /// SCTP delayed SACK parameters, include/uapi/linux/sctp.h.
+  /// @kernel-only
+  /// @size(12)
+  /// @align(4)
+  record sctp-sack-info { sack-assoc-id: s32, sack-delay: u32, sack-freq: u32 }
+
+  /// SCTP peer address change notification, include/uapi/linux/sctp.h.
+  /// @kernel-only
+  /// @size(148)
+  /// @align(4)
+  record sctp-paddr-change {
+    spc-type: u16, spc-flags: u16, spc-length: u32,
+    spc-aaddr: sockaddr-storage, spc-state: s32, spc-error: s32, spc-assoc-id: s32,
+  }
+
+  /// SCTP adaptation notification, include/uapi/linux/sctp.h.
+  /// @kernel-only
+  /// @size(16)
+  /// @align(4)
+  record sctp-adaptation-event {
+    sai-type: u16, sai-flags: u16, sai-length: u32,
+    sai-adaptation-ind: u32, sai-assoc-id: s32,
+  }
+
+  /// SCTP partial delivery notification, include/uapi/linux/sctp.h.
+  /// @kernel-only
+  /// @size(24)
+  /// @align(4)
+  record sctp-pdapi-event {
+    pdapi-type: u16, pdapi-flags: u16, pdapi-length: u32,
+    pdapi-indication: u32, pdapi-assoc-id: s32, pdapi-stream: u32, pdapi-seq: u32,
+  }
+
+  /// Vsock error queue control type, include/uapi/linux/vm_sockets.h.
+  /// @repr(s32)
+  enum vsock-cmsg {
+    /// @value(1)
+    vsock-recverr,
+  }
+
+  /// Generic netlink control commands, include/uapi/linux/genetlink.h.
+  /// @repr(u8)
+  enum ctrl-cmd {
+    /// @value(1)
+    ctrl-cmd-newfamily,
+    /// @value(3)
+    ctrl-cmd-getfamily,
+    /// @value(10)
+    ctrl-cmd-getpolicy,
+  }
+
+  /// Generic netlink controller attributes, include/uapi/linux/genetlink.h.
+  /// @repr(u16)
+  enum ctrl-attr {
+    /// @value(1)
+    ctrl-attr-family-id,
+    /// @value(2)
+    ctrl-attr-family-name,
+    /// @value(3)
+    ctrl-attr-version,
+    /// @value(4)
+    ctrl-attr-hdrsize,
+    /// @value(5)
+    ctrl-attr-maxattr,
+    /// @value(6)
+    ctrl-attr-ops,
+    /// @value(7)
+    ctrl-attr-mcast-groups,
+  }
+
+  /// Linux's kobject uevent datagrams are NUL-terminated key/value strings, with no
+  /// fixed binary header (lib/kobject_uevent.c: kobject_uevent_env).
+  /// @repr(s32)
+  enum netlink-protocol-q5 {
+    /// @value(2)
+    netlink-usersock,
+    /// @value(15)
+    netlink-kobject-uevent,
+    /// @value(16)
+    netlink-generic,
+  }
+
 }
