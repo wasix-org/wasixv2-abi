@@ -1756,6 +1756,584 @@ interface types {
     arg-max,
   }
 
+  // ==== File handles, inode flags, ACLs, quotas and fanotify ====
+
+  /// Limits and handle types of `name_to_handle_at` (`linux/fcntl.h` `MAX_HANDLE_SZ`,
+  /// `linux/exportfs.h` `enum fid_type` and its flag bits).
+  /// @repr(s32)
+  enum file-handle-misc {
+    /// `FILEID_ROOT`: the root of the filesystem, which some filesystems encode as such.
+    /// @value(0)
+    fileid-root,
+    /// `FILEID_INO32_GEN`: a 32-bit inode number and a 32-bit generation.
+    /// @value(1)
+    fileid-ino32-gen,
+    /// `FILEID_INO32_GEN_PARENT`: also the parent's inode number and generation.
+    /// @value(2)
+    fileid-ino32-gen-parent,
+    /// `FILEID_INO64_GEN`: a 64-bit inode number and a 32-bit generation.
+    /// @value(0x81)
+    fileid-ino64-gen,
+    /// `FILEID_INO64_GEN_PARENT`.
+    /// @value(0x82)
+    fileid-ino64-gen-parent,
+    /// `FILEID_INVALID`.
+    /// @value(0xff)
+    fileid-invalid,
+    /// `MAX_HANDLE_SZ`: the most bytes `name_to_handle_at` fills.
+    /// @value(128)
+    max-handle-sz,
+    /// `FILEID_IS_CONNECTABLE`: a handle made with `AT_HANDLE_CONNECTABLE`.
+    /// @value(0x10000)
+    fileid-is-connectable,
+    /// `FILEID_IS_DIR`: a connectable handle of a directory.
+    /// @value(0x20000)
+    fileid-is-dir,
+  }
+
+  /// `FS_IOC_FSGETXATTR`/`FS_IOC_FSSETXATTR` attributes (`struct fsxattr`, `linux/fs.h`).
+  /// @kernel-only
+  /// @size(28)
+  /// @align(4)
+  record fsxattr {
+    fsx-xflags: u32,
+    fsx-extsize: u32,
+    fsx-nextents: u32,
+    fsx-projid: u32,
+    fsx-cowextsize: u32,
+    fsx-pad: list<u8, 8>,
+  }
+
+  /// Inode flags of `FS_IOC_GETFLAGS`/`FS_IOC_SETFLAGS` (`FS_*_FL`, `linux/fs.h`; the ext2
+  /// on-disk encoding).
+  /// @repr(u32)
+  /// @c(int)
+  flags fs-inode-flags {
+    /// @value(0x1)
+    fs-secrm-fl,
+    /// @value(0x2)
+    fs-unrm-fl,
+    /// @value(0x4)
+    fs-compr-fl,
+    /// @value(0x8)
+    fs-sync-fl,
+    /// @value(0x10)
+    fs-immutable-fl,
+    /// @value(0x20)
+    fs-append-fl,
+    /// @value(0x40)
+    fs-nodump-fl,
+    /// @value(0x80)
+    fs-noatime-fl,
+    /// @value(0x100)
+    fs-dirty-fl,
+    /// @value(0x200)
+    fs-comprblk-fl,
+    /// @value(0x400)
+    fs-nocomp-fl,
+    /// @value(0x800)
+    fs-encrypt-fl,
+    /// @value(0x1000)
+    fs-btree-fl,
+    /// @value(0x1000)
+    fs-index-fl,
+    /// @value(0x2000)
+    fs-imagic-fl,
+    /// @value(0x4000)
+    fs-journal-data-fl,
+    /// @value(0x8000)
+    fs-notail-fl,
+    /// @value(0x10000)
+    fs-dirsync-fl,
+    /// @value(0x20000)
+    fs-topdir-fl,
+    /// @value(0x40000)
+    fs-huge-file-fl,
+    /// @value(0x80000)
+    fs-extent-fl,
+    /// @value(0x100000)
+    fs-verity-fl,
+    /// @value(0x200000)
+    fs-ea-inode-fl,
+    /// @value(0x400000)
+    fs-eofblocks-fl,
+    /// @value(0x800000)
+    fs-nocow-fl,
+    /// @value(0x2000000)
+    fs-dax-fl,
+    /// @value(0x10000000)
+    fs-inline-data-fl,
+    /// @value(0x20000000)
+    fs-projinherit-fl,
+    /// @value(0x40000000)
+    fs-casefold-fl,
+    /// @value(0x80000000)
+    fs-reserved-fl,
+    /// @value(0x3dfff)
+    fs-fl-user-visible,
+    /// @value(0x380ff)
+    fs-fl-user-modifiable,
+  }
+
+  /// Extended inode flags of `struct fsxattr` and `struct file_attr` (`FS_XFLAG_*`,
+  /// `linux/fs.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags fs-xflags {
+    /// @value(0x1)
+    fs-xflag-realtime,
+    /// @value(0x2)
+    fs-xflag-prealloc,
+    /// @value(0x8)
+    fs-xflag-immutable,
+    /// @value(0x10)
+    fs-xflag-append,
+    /// @value(0x20)
+    fs-xflag-sync,
+    /// @value(0x40)
+    fs-xflag-noatime,
+    /// @value(0x80)
+    fs-xflag-nodump,
+    /// @value(0x100)
+    fs-xflag-rtinherit,
+    /// @value(0x200)
+    fs-xflag-projinherit,
+    /// @value(0x400)
+    fs-xflag-nosymlinks,
+    /// @value(0x800)
+    fs-xflag-extsize,
+    /// @value(0x1000)
+    fs-xflag-extszinherit,
+    /// @value(0x2000)
+    fs-xflag-nodefrag,
+    /// @value(0x4000)
+    fs-xflag-filestream,
+    /// @value(0x8000)
+    fs-xflag-dax,
+    /// @value(0x10000)
+    fs-xflag-cowextsize,
+    /// @value(0x20000)
+    fs-xflag-verity,
+    /// @value(0x40000)
+    fs-xflag-casefold,
+    /// @value(0x80000)
+    fs-xflag-casenonpreserving,
+    /// @value(0x80000000)
+    fs-xflag-hasattr,
+  }
+
+  /// `file_getattr`/`file_setattr` sizes (`FILE_ATTR_SIZE_*`, `linux/fs.h`).
+  /// @repr(u32)
+  enum file-attr-size {
+    /// @value(24)
+    file-attr-size-ver0,
+    /// @value(24)
+    file-attr-size-latest,
+  }
+
+  /// Header of a POSIX ACL extended attribute value (`struct posix_acl_xattr_header`,
+  /// `linux/posix_acl_xattr.h`), little-endian; `posix-acl-xattr-entry` records follow.
+  /// @kernel-only
+  /// @size(4)
+  /// @align(4)
+  record posix-acl-xattr-header {
+    a-version: u32,
+  }
+
+  /// One entry of a POSIX ACL extended attribute (`struct posix_acl_xattr_entry`),
+  /// little-endian.
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record posix-acl-xattr-entry {
+    e-tag: u16,
+    e-perm: u16,
+    e-id: u32,
+  }
+
+  /// POSIX ACL tags, permissions and constants (`linux/posix_acl.h`,
+  /// `linux/posix_acl_xattr.h`).
+  /// @repr(s32)
+  enum posix-acl-misc {
+    /// @value(-1)
+    acl-undefined-id,
+    /// @value(0x1)
+    acl-execute,
+    /// @value(0x1)
+    acl-user-obj,
+    /// @value(0x2)
+    acl-user,
+    /// @value(0x2)
+    acl-write,
+    /// @value(0x2)
+    posix-acl-xattr-version,
+    /// @value(0x4)
+    acl-group-obj,
+    /// @value(0x4)
+    acl-read,
+    /// @value(0x8)
+    acl-group,
+    /// @value(0x10)
+    acl-mask,
+    /// @value(0x20)
+    acl-other,
+    /// @value(0x4000)
+    acl-type-default,
+    /// @value(0x8000)
+    acl-type-access,
+  }
+
+  /// Quota limits and usage of one id (`struct if_dqblk`, `linux/quota.h`).
+  /// @kernel-only
+  /// @size(72)
+  /// @align(8)
+  record if-dqblk {
+    dqb-bhardlimit: u64,
+    dqb-bsoftlimit: u64,
+    dqb-curspace: u64,
+    dqb-ihardlimit: u64,
+    dqb-isoftlimit: u64,
+    dqb-curinodes: u64,
+    dqb-btime: u64,
+    dqb-itime: u64,
+    dqb-valid: u32,
+  }
+
+  /// `Q_GETNEXTQUOTA` result (`struct if_nextdqblk`).
+  /// @kernel-only
+  /// @size(72)
+  /// @align(8)
+  record if-nextdqblk {
+    dqb-bhardlimit: u64,
+    dqb-bsoftlimit: u64,
+    dqb-curspace: u64,
+    dqb-ihardlimit: u64,
+    dqb-isoftlimit: u64,
+    dqb-curinodes: u64,
+    dqb-btime: u64,
+    dqb-itime: u64,
+    dqb-valid: u32,
+    dqb-id: u32,
+  }
+
+  /// Quota grace times and flags of one quota type (`struct if_dqinfo`).
+  /// @kernel-only
+  /// @size(24)
+  /// @align(8)
+  record if-dqinfo {
+    dqi-bgrace: u64,
+    dqi-igrace: u64,
+    dqi-flags: u32,
+    dqi-valid: u32,
+  }
+
+  /// `quotactl` commands (`Q_*`, `QCMD(cmd, type)` = `cmd << SUBCMDSHIFT | type`), quota
+  /// types, formats and the `dqb-valid`/`dqi-valid` bits (`linux/quota.h`).
+  /// @repr(u32)
+  enum quota-misc {
+    /// @value(0)
+    usrquota,
+    /// @value(1)
+    grpquota,
+    /// @value(1)
+    qif-blimits,
+    /// @value(1)
+    iif-bgrace,
+    /// @value(1)
+    dqf-root-squash,
+    /// @value(2)
+    prjquota,
+    /// @value(2)
+    qif-space,
+    /// @value(2)
+    iif-igrace,
+    /// @value(4)
+    qif-ilimits,
+    /// @value(4)
+    iif-flags,
+    /// @value(5)
+    qfmt-shmem,
+    /// @value(7)
+    iif-all,
+    /// @value(8)
+    subcmdshift,
+    /// @value(8)
+    qif-inodes,
+    /// @value(0xff)
+    subcmdmask,
+    /// @value(16)
+    qif-btime,
+    /// @value(32)
+    qif-itime,
+    /// @value(63)
+    qif-all,
+    /// @value(0x800001)
+    q-sync,
+    /// @value(0x800002)
+    q-quotaon,
+    /// @value(0x800003)
+    q-quotaoff,
+    /// @value(0x800004)
+    q-getfmt,
+    /// @value(0x800005)
+    q-getinfo,
+    /// @value(0x800006)
+    q-setinfo,
+    /// @value(0x800007)
+    q-getquota,
+    /// @value(0x800008)
+    q-setquota,
+    /// @value(0x800009)
+    q-getnextquota,
+  }
+
+  /// A permission event's answer, written to the fanotify descriptor (`struct
+  /// fanotify_response`, `linux/fanotify.h`).
+  /// @c(struct fanotify_response)
+  /// @size(8)
+  /// @align(4)
+  record fanotify-response {
+    fd: s32,
+    response: u32,
+  }
+
+  /// Header of each information record after an fanotify event (`struct
+  /// fanotify_event_info_header`).
+  /// @c(struct fanotify_event_info_header)
+  /// @size(4)
+  /// @align(2)
+  record fanotify-event-info-header {
+    info-type: u8,
+    pad: u8,
+    len: u16,
+  }
+
+  /// A file identifier record (`struct fanotify_event_info_fid`); a `file-handle` follows at
+  /// offset 12, and for `FAN_EVENT_INFO_TYPE_DFID_NAME` a NUL-terminated name after it.
+  /// @c(struct fanotify_event_info_fid)
+  /// @size(12)
+  /// @align(4)
+  record fanotify-event-info-fid {
+    hdr: fanotify-event-info-header,
+    fsid: kernel-fsid,
+  }
+
+  /// A pidfd record (`struct fanotify_event_info_pidfd`).
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record fanotify-event-info-pidfd {
+    hdr: fanotify-event-info-header,
+    pidfd: s32,
+  }
+
+  /// A filesystem error record (`struct fanotify_event_info_error`).
+  /// @kernel-only
+  /// @size(12)
+  /// @align(4)
+  record fanotify-event-info-error {
+    hdr: fanotify-event-info-header,
+    error: s32,
+    error-count: u32,
+  }
+
+  /// A mount record (`struct fanotify_event_info_mnt`).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(8)
+  record fanotify-event-info-mnt {
+    hdr: fanotify-event-info-header,
+    mnt-id: u64,
+  }
+
+  /// `fanotify_init` flags (`FAN_CLOEXEC`, `FAN_CLASS_*`, `FAN_REPORT_*`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags fanotify-init-flags {
+    /// @value(0x0)
+    fan-class-notif,
+    /// @value(0x1)
+    fan-cloexec,
+    /// @value(0x2)
+    fan-nonblock,
+    /// @value(0x4)
+    fan-class-content,
+    /// @value(0x8)
+    fan-class-pre-content,
+    /// @value(0xc)
+    fan-all-class-bits,
+    /// @value(0x10)
+    fan-unlimited-queue,
+    /// @value(0x20)
+    fan-unlimited-marks,
+    /// @value(0x40)
+    fan-enable-audit,
+    /// @value(0x80)
+    fan-report-pidfd,
+    /// @value(0x100)
+    fan-report-tid,
+    /// @value(0x200)
+    fan-report-fid,
+    /// @value(0x400)
+    fan-report-dir-fid,
+    /// @value(0x800)
+    fan-report-name,
+    /// @value(0xc00)
+    fan-report-dfid-name,
+    /// @value(0x1000)
+    fan-report-target-fid,
+    /// @value(0x1e00)
+    fan-report-dfid-name-target,
+    /// @value(0x2000)
+    fan-report-fd-error,
+    /// @value(0x4000)
+    fan-report-mnt,
+  }
+
+  /// `fanotify_mark` flags (`FAN_MARK_*`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags fanotify-mark-flags {
+    /// @value(0x0)
+    fan-mark-inode,
+    /// @value(0x1)
+    fan-mark-add,
+    /// @value(0x2)
+    fan-mark-remove,
+    /// @value(0x4)
+    fan-mark-dont-follow,
+    /// @value(0x8)
+    fan-mark-onlydir,
+    /// @value(0x10)
+    fan-mark-mount,
+    /// @value(0x20)
+    fan-mark-ignored-mask,
+    /// @value(0x40)
+    fan-mark-ignored-surv-modify,
+    /// @value(0x80)
+    fan-mark-flush,
+    /// @value(0x100)
+    fan-mark-filesystem,
+    /// @value(0x110)
+    fan-mark-mntns,
+    /// @value(0x200)
+    fan-mark-evictable,
+    /// @value(0x400)
+    fan-mark-ignore,
+    /// @value(0x440)
+    fan-mark-ignore-surv,
+  }
+
+  /// fanotify event bits of a mark's mask and of `fanotify-event-metadata.mask` (`FAN_*`).
+  /// @repr(u64)
+  /// @c(uint64_t)
+  flags fanotify-mask {
+    /// @value(0x1)
+    fan-access,
+    /// @value(0x2)
+    fan-modify,
+    /// @value(0x4)
+    fan-attrib,
+    /// @value(0x8)
+    fan-close-write,
+    /// @value(0x10)
+    fan-close-nowrite,
+    /// @value(0x18)
+    fan-close,
+    /// @value(0x20)
+    fan-open,
+    /// @value(0x40)
+    fan-moved-from,
+    /// @value(0x80)
+    fan-moved-to,
+    /// @value(0xc0)
+    fan-move,
+    /// @value(0x100)
+    fan-create,
+    /// @value(0x200)
+    fan-delete,
+    /// @value(0x400)
+    fan-delete-self,
+    /// @value(0x800)
+    fan-move-self,
+    /// @value(0x1000)
+    fan-open-exec,
+    /// @value(0x4000)
+    fan-q-overflow,
+    /// @value(0x8000)
+    fan-fs-error,
+    /// @value(0x10000)
+    fan-open-perm,
+    /// @value(0x20000)
+    fan-access-perm,
+    /// @value(0x40000)
+    fan-open-exec-perm,
+    /// @value(0x100000)
+    fan-pre-access,
+    /// @value(0x1000000)
+    fan-mnt-attach,
+    /// @value(0x2000000)
+    fan-mnt-detach,
+    /// @value(0x8000000)
+    fan-event-on-child,
+    /// @value(0x10000000)
+    fan-rename,
+    /// @value(0x40000000)
+    fan-ondir,
+  }
+
+  /// fanotify constants: the metadata version, permission responses, the special
+  /// descriptor values and the information record types (`linux/fanotify.h`).
+  /// @repr(s32)
+  enum fanotify-misc {
+    /// `FAN_EPIDFD`: the pidfd of a process that is gone.
+    /// @value(-2)
+    fan-epidfd,
+    /// `FAN_NOFD`: an event without a descriptor (FID reporting, overflow).
+    /// @value(-1)
+    fan-nofd,
+    /// @value(-1)
+    fan-nopidfd,
+    /// @value(0)
+    fan-response-info-none,
+    /// @value(1)
+    fan-allow,
+    /// @value(1)
+    fan-event-info-type-fid,
+    /// @value(1)
+    fan-response-info-audit-rule,
+    /// @value(2)
+    fan-deny,
+    /// @value(2)
+    fan-event-info-type-dfid-name,
+    /// @value(3)
+    fan-event-info-type-dfid,
+    /// @value(3)
+    fanotify-metadata-version,
+    /// @value(4)
+    fan-event-info-type-pidfd,
+    /// @value(5)
+    fan-event-info-type-error,
+    /// @value(6)
+    fan-event-info-type-range,
+    /// @value(7)
+    fan-event-info-type-mnt,
+    /// @value(8)
+    fan-errno-bits,
+    /// @value(10)
+    fan-event-info-type-old-dfid-name,
+    /// @value(12)
+    fan-event-info-type-new-dfid-name,
+    /// @value(0x10)
+    fan-audit,
+    /// @value(24)
+    fan-errno-shift,
+    /// @value(0x20)
+    fan-info,
+    /// @value(0xff)
+    fan-errno-mask,
+  }
+
   // ==== Polling and event notification ====
 
   /// `ppoll_time64` entry (`struct pollfd`).
@@ -5050,6 +5628,8 @@ interface types {
     sol-tls,
     /// @value(283)
     sol-xdp,
+    /// @value(132)
+    sol-sctp,
   }
 
   /// `SOL_SOCKET` options (`asm-generic/socket.h`).
@@ -5739,6 +6319,657 @@ interface types {
   flags tcp-zerocopy-flags {
     /// @value(0x1)
     tcp-receive-zerocopy-flag-tlb-clean-hint,
+  }
+
+  // ==== Socket families: vsock and sock_diag ====
+
+  /// `AF_VSOCK` socket address (`struct sockaddr_vm`, UAPI `linux/vm_sockets.h`, which musl
+  /// does not have).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(4)
+  record sockaddr-vm {
+    svm-family: sa-family,
+    svm-reserved1: u16,
+    svm-port: u32,
+    svm-cid: u32,
+    /// `vmaddr-flags`.
+    svm-flags: u8,
+    svm-zero: list<u8, 3>,
+  }
+
+  /// Well-known vsock context identifiers and ports (`VMADDR_*`).
+  /// @repr(u32)
+  enum vmaddr {
+    /// @value(0)
+    vmaddr-cid-hypervisor,
+    /// @value(1)
+    vmaddr-cid-local,
+    /// @value(2)
+    vmaddr-cid-host,
+    /// @value(0xffffffff)
+    vmaddr-cid-any,
+    /// @value(0xffffffff)
+    vmaddr-port-any,
+  }
+
+  /// `svm_flags` bits.
+  /// @repr(u8)
+  flags vmaddr-flags {
+    /// @value(0x1)
+    vmaddr-flag-to-host,
+  }
+
+  /// `AF_VSOCK`-level socket options (`SO_VM_SOCKETS_*`).
+  /// @repr(s32)
+  enum vsock-option {
+    /// @value(0)
+    so-vm-sockets-buffer-size,
+    /// @value(1)
+    so-vm-sockets-buffer-min-size,
+    /// @value(2)
+    so-vm-sockets-buffer-max-size,
+    /// @value(3)
+    so-vm-sockets-peer-host-vm-id,
+    /// @value(5)
+    so-vm-sockets-trusted,
+    /// @value(6)
+    so-vm-sockets-connect-timeout-old,
+    /// @value(7)
+    so-vm-sockets-nonblock-txrx,
+    /// @value(8)
+    so-vm-sockets-connect-timeout-new,
+  }
+
+  /// `sock_diag` request header (`struct sock_diag_req`, UAPI `linux/sock_diag.h`).
+  /// @kernel-only
+  /// @size(2)
+  /// @align(1)
+  record sock-diag-req {
+    sdiag-family: u8,
+    sdiag-protocol: u8,
+  }
+
+  /// A socket's identity in `inet_diag` (`struct inet_diag_sockid`, UAPI `linux/inet_diag.h`).
+  /// Ports and addresses are big-endian; an IPv4 address takes the first word of its array.
+  /// @kernel-only
+  /// @size(48)
+  /// @align(4)
+  record inet-diag-sockid {
+    idiag-sport: u16,
+    idiag-dport: u16,
+    idiag-src: list<u32, 4>,
+    idiag-dst: list<u32, 4>,
+    idiag-if: u32,
+    idiag-cookie: list<u32, 2>,
+  }
+
+  /// `SOCK_DIAG_BY_FAMILY` request for `AF_INET`/`AF_INET6` (`struct inet_diag_req_v2`).
+  /// @kernel-only
+  /// @size(56)
+  /// @align(4)
+  record inet-diag-req-v2 {
+    sdiag-family: u8,
+    sdiag-protocol: u8,
+    /// Bits `1 << (INET_DIAG_* - 1)` of the attributes to add.
+    idiag-ext: u8,
+    pad: u8,
+    /// Bits `1 << TCP_*` of the states to dump.
+    idiag-states: u32,
+    id: inet-diag-sockid,
+  }
+
+  /// The legacy `TCPDIAG_GETSOCK`/`DCCPDIAG_GETSOCK` request (`struct inet_diag_req`).
+  /// @kernel-only
+  /// @size(60)
+  /// @align(4)
+  record inet-diag-req {
+    idiag-family: u8,
+    idiag-src-len: u8,
+    idiag-dst-len: u8,
+    idiag-ext: u8,
+    id: inet-diag-sockid,
+    idiag-states: u32,
+    idiag-dbs: u32,
+  }
+
+  /// One socket of an `inet_diag` dump (`struct inet_diag_msg`).
+  /// @kernel-only
+  /// @size(72)
+  /// @align(4)
+  record inet-diag-msg {
+    idiag-family: u8,
+    idiag-state: u8,
+    idiag-timer: u8,
+    idiag-retrans: u8,
+    id: inet-diag-sockid,
+    idiag-expires: u32,
+    idiag-rqueue: u32,
+    idiag-wqueue: u32,
+    idiag-uid: u32,
+    idiag-inode: u32,
+  }
+
+  /// `INET_DIAG_MEMINFO` attribute (`struct inet_diag_meminfo`).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(4)
+  record inet-diag-meminfo {
+    idiag-rmem: u32,
+    idiag-wmem: u32,
+    idiag-fmem: u32,
+    idiag-tmem: u32,
+  }
+
+  /// `SOCK_DIAG_BY_FAMILY` request for `AF_UNIX` (`struct unix_diag_req`, UAPI
+  /// `linux/unix_diag.h`).
+  /// @kernel-only
+  /// @size(24)
+  /// @align(4)
+  record unix-diag-req {
+    sdiag-family: u8,
+    sdiag-protocol: u8,
+    pad: u16,
+    /// Bits `1 << TCP_*` of the states to dump.
+    udiag-states: u32,
+    udiag-ino: u32,
+    /// `UDIAG_SHOW_*` bits.
+    udiag-show: u32,
+    udiag-cookie: list<u32, 2>,
+  }
+
+  /// One socket of a `unix_diag` dump (`struct unix_diag_msg`).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(4)
+  record unix-diag-msg {
+    udiag-family: u8,
+    udiag-type: u8,
+    udiag-state: u8,
+    pad: u8,
+    udiag-ino: u32,
+    udiag-cookie: list<u32, 2>,
+  }
+
+  /// `UNIX_DIAG_RQLEN` attribute (`struct unix_diag_rqlen`).
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record unix-diag-rqlen {
+    udiag-rqueue: u32,
+    udiag-wqueue: u32,
+  }
+
+  /// `UNIX_DIAG_VFS` attribute (`struct unix_diag_vfs`).
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record unix-diag-vfs {
+    udiag-vfs-ino: u32,
+    udiag-vfs-dev: u32,
+  }
+
+  /// `SCTP_INITMSG` and the `SCTP_INIT` control message (`struct sctp_initmsg`, UAPI `linux/sctp.h`, which musl does not have).
+  /// @kernel-only
+  /// @size(8)
+  /// @align(2)
+  record sctp-initmsg {
+    sinit-num-ostreams: u16,
+    sinit-max-instreams: u16,
+    sinit-max-attempts: u16,
+    sinit-max-init-timeo: u16,
+  }
+
+  /// `SCTP_SNDRCV` control message and `SCTP_DEFAULT_SEND_PARAM` (`struct sctp_sndrcvinfo`); `sinfo-flags` holds `sctp-sinfo-flags`.
+  /// @kernel-only
+  /// @size(32)
+  /// @align(4)
+  record sctp-sndrcvinfo {
+    sinfo-stream: u16,
+    sinfo-ssn: u16,
+    sinfo-flags: u16,
+    sinfo-ppid: u32,
+    sinfo-context: u32,
+    sinfo-timetolive: u32,
+    sinfo-tsn: u32,
+    sinfo-cumtsn: u32,
+    sinfo-assoc-id: s32,
+  }
+
+  /// `SCTP_SNDINFO` control message and `SCTP_DEFAULT_SNDINFO` (`struct sctp_sndinfo`).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(4)
+  record sctp-sndinfo {
+    snd-sid: u16,
+    snd-flags: u16,
+    snd-ppid: u32,
+    snd-context: u32,
+    snd-assoc-id: s32,
+  }
+
+  /// `SCTP_RCVINFO` control message (`struct sctp_rcvinfo`).
+  /// @kernel-only
+  /// @size(28)
+  /// @align(4)
+  record sctp-rcvinfo {
+    rcv-sid: u16,
+    rcv-ssn: u16,
+    rcv-flags: u16,
+    rcv-ppid: u32,
+    rcv-tsn: u32,
+    rcv-cumtsn: u32,
+    rcv-context: u32,
+    rcv-assoc-id: s32,
+  }
+
+  /// `SCTP_NXTINFO` control message (`struct sctp_nxtinfo`).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(4)
+  record sctp-nxtinfo {
+    nxt-sid: u16,
+    nxt-flags: u16,
+    nxt-ppid: u32,
+    nxt-length: u32,
+    nxt-assoc-id: s32,
+  }
+
+  /// `SCTP_EVENTS` (`struct sctp_event_subscribe`): one byte per notification. The last field is the kernel's `sctp_send_failure_event_event`.
+  /// @kernel-only
+  /// @size(14)
+  /// @align(1)
+  record sctp-event-subscribe {
+    sctp-data-io-event: u8,
+    sctp-association-event: u8,
+    sctp-address-event: u8,
+    sctp-send-failure-event: u8,
+    sctp-peer-error-event: u8,
+    sctp-shutdown-event: u8,
+    sctp-partial-delivery-event: u8,
+    sctp-adaptation-layer-event: u8,
+    sctp-authentication-event: u8,
+    sctp-sender-dry-event: u8,
+    sctp-stream-reset-event: u8,
+    sctp-assoc-reset-event: u8,
+    sctp-stream-change-event: u8,
+    sctp-send-failure-event-event: u8,
+  }
+
+  /// `SCTP_EVENT` (`struct sctp_event`): one notification type on or off.
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record sctp-event {
+    se-assoc-id: s32,
+    se-type: u16,
+    se-on: u8,
+    se-pad: u8,
+  }
+
+  /// `SCTP_RTOINFO` (`struct sctp_rtoinfo`), in milliseconds.
+  /// @kernel-only
+  /// @size(16)
+  /// @align(4)
+  record sctp-rtoinfo {
+    srto-assoc-id: s32,
+    srto-initial: u32,
+    srto-max: u32,
+    srto-min: u32,
+  }
+
+  /// `SCTP_ASSOCINFO` (`struct sctp_assocparams`).
+  /// @kernel-only
+  /// @size(20)
+  /// @align(4)
+  record sctp-assocparams {
+    sasoc-assoc-id: s32,
+    sasoc-asocmaxrxt: u16,
+    sasoc-number-peer-destinations: u16,
+    sasoc-peer-rwnd: u32,
+    sasoc-local-rwnd: u32,
+    sasoc-cookie-life: u32,
+  }
+
+  /// `SCTP_MAXSEG`, `SCTP_CONTEXT`, `SCTP_MAX_BURST` and the like (`struct sctp_assoc_value`).
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record sctp-assoc-value {
+    assoc-id: s32,
+    assoc-value: u32,
+  }
+
+  /// `SCTP_GET_PEER_ADDRS`/`SCTP_GET_LOCAL_ADDRS` header (`struct sctp_getaddrs`); the packed addresses follow it.
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record sctp-getaddrs {
+    assoc-id: s32,
+    addr-num: u32,
+  }
+
+  /// `SCTP_ASSOC_CHANGE` notification (`struct sctp_assoc_change`); `sac-state` is `sctp-sac-state`. Variable data may follow.
+  /// @kernel-only
+  /// @size(20)
+  /// @align(4)
+  record sctp-assoc-change {
+    sac-type: u16,
+    sac-flags: u16,
+    sac-length: u32,
+    sac-state: u16,
+    sac-error: u16,
+    sac-outbound-streams: u16,
+    sac-inbound-streams: u16,
+    sac-assoc-id: s32,
+  }
+
+  /// `SCTP_SHUTDOWN_EVENT` notification (`struct sctp_shutdown_event`).
+  /// @kernel-only
+  /// @size(12)
+  /// @align(4)
+  record sctp-shutdown-event {
+    sse-type: u16,
+    sse-flags: u16,
+    sse-length: u32,
+    sse-assoc-id: s32,
+  }
+
+  /// `SCTP_SENDER_DRY_EVENT` notification (`struct sctp_sender_dry_event`).
+  /// @kernel-only
+  /// @size(12)
+  /// @align(4)
+  record sctp-sender-dry-event {
+    sender-dry-type: u16,
+    sender-dry-flags: u16,
+    sender-dry-length: u32,
+    sender-dry-assoc-id: s32,
+  }
+
+  /// `SCTP_GET_PEER_ADDR_INFO` and `sctp-status`' primary path (`struct sctp_paddrinfo`, packed
+  /// and 4-aligned, which on wasm32 leaves every field at its natural offset); `spinfo-state` is
+  /// `sctp-spinfo-state`.
+  /// @kernel-only
+  /// @size(152)
+  /// @align(4)
+  record sctp-paddrinfo {
+    spinfo-assoc-id: s32,
+    spinfo-address: sockaddr-storage,
+    spinfo-state: s32,
+    spinfo-cwnd: u32,
+    spinfo-srtt: u32,
+    spinfo-rto: u32,
+    spinfo-mtu: u32,
+  }
+
+  /// `SCTP_STATUS` (`struct sctp_status`); `sstat-state` is `sctp-sstat-state`.
+  /// @kernel-only
+  /// @size(176)
+  /// @align(4)
+  record sctp-status {
+    sstat-assoc-id: s32,
+    sstat-state: s32,
+    sstat-rwnd: u32,
+    sstat-unackdata: u16,
+    sstat-penddata: u16,
+    sstat-instrms: u16,
+    sstat-outstrms: u16,
+    sstat-fragmentation-point: u32,
+    sstat-primary: sctp-paddrinfo,
+  }
+
+  /// `SCTP_PRIMARY_ADDR` (`struct sctp_prim`, packed and 4-aligned).
+  /// @kernel-only
+  /// @size(132)
+  /// @align(4)
+  record sctp-prim {
+    ssp-assoc-id: s32,
+    ssp-addr: sockaddr-storage,
+  }
+
+  /// `SCTP_SOCKOPT_PEELOFF` (`sctp_peeloff_arg_t`): in, the association; out, the new descriptor.
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record sctp-peeloff-arg {
+    associd: s32,
+    sd: s32,
+  }
+
+  /// `SCTP_SOCKOPT_PEELOFF_FLAGS` (`sctp_peeloff_flags_arg_t`); `flags` takes `SOCK_CLOEXEC` and
+  /// `SOCK_NONBLOCK`.
+  /// @kernel-only
+  /// @size(12)
+  /// @align(4)
+  record sctp-peeloff-flags-arg {
+    p-arg: sctp-peeloff-arg,
+    %flags: u32,
+  }
+
+  /// `SCTP_SOCKOPT_CONNECTX3` (`struct sctp_getaddrs_old`): `addr-num` bytes of packed addresses
+  /// at `addrs`; the association id is written back over `assoc-id`.
+  /// @kernel-only
+  /// @size(12)
+  /// @align(4)
+  record sctp-getaddrs-old {
+    assoc-id: s32,
+    addr-num: s32,
+    addrs: const-sockaddr-ptr,
+  }
+
+  /// `sstat_state` of `SCTP_STATUS` (`enum sctp_sstat_state`).
+  /// @repr(s32)
+  enum sctp-sstat-state {
+    /// @value(0)
+    sctp-empty,
+    /// @value(1)
+    sctp-closed,
+    /// @value(2)
+    sctp-cookie-wait,
+    /// @value(3)
+    sctp-cookie-echoed,
+    /// @value(4)
+    sctp-established,
+    /// @value(5)
+    sctp-shutdown-pending,
+    /// @value(6)
+    sctp-shutdown-sent,
+    /// @value(7)
+    sctp-shutdown-received,
+    /// @value(8)
+    sctp-shutdown-ack-sent,
+  }
+
+  /// `spinfo_state` of a peer address (`enum sctp_spinfo_state`).
+  /// @repr(s32)
+  enum sctp-spinfo-state {
+    /// @value(0)
+    sctp-inactive,
+    /// @value(1)
+    sctp-pf,
+    /// @value(2)
+    sctp-active,
+    /// @value(3)
+    sctp-unconfirmed,
+    /// @value(0xffff)
+    sctp-unknown,
+  }
+
+  /// `SOL_SCTP` socket options (UAPI `linux/sctp.h`).
+  /// @repr(s32)
+  enum sctp-option {
+    /// @value(0)
+    sctp-rtoinfo,
+    /// @value(1)
+    sctp-associnfo,
+    /// @value(2)
+    sctp-initmsg,
+    /// @value(3)
+    sctp-nodelay,
+    /// @value(4)
+    sctp-autoclose,
+    /// @value(5)
+    sctp-set-peer-primary-addr,
+    /// @value(6)
+    sctp-primary-addr,
+    /// @value(7)
+    sctp-adaptation-layer,
+    /// @value(8)
+    sctp-disable-fragments,
+    /// @value(9)
+    sctp-peer-addr-params,
+    /// @value(10)
+    sctp-default-send-param,
+    /// @value(11)
+    sctp-events,
+    /// @value(12)
+    sctp-i-want-mapped-v4-addr,
+    /// @value(13)
+    sctp-maxseg,
+    /// @value(14)
+    sctp-status,
+    /// @value(15)
+    sctp-get-peer-addr-info,
+    /// @value(16)
+    sctp-delayed-ack-time,
+    /// @value(17)
+    sctp-context,
+    /// @value(18)
+    sctp-fragment-interleave,
+    /// @value(19)
+    sctp-partial-delivery-point,
+    /// @value(20)
+    sctp-max-burst,
+    /// @value(28)
+    sctp-get-assoc-number,
+    /// @value(29)
+    sctp-get-assoc-id-list,
+    /// @value(32)
+    sctp-recvrcvinfo,
+    /// @value(33)
+    sctp-recvnxtinfo,
+    /// @value(34)
+    sctp-default-sndinfo,
+    /// @value(36)
+    sctp-reuse-port,
+    /// @value(100)
+    sctp-sockopt-bindx-add,
+    /// @value(101)
+    sctp-sockopt-bindx-rem,
+    /// @value(102)
+    sctp-sockopt-peeloff,
+    /// @value(107)
+    sctp-sockopt-connectx-old,
+    /// @value(108)
+    sctp-get-peer-addrs,
+    /// @value(109)
+    sctp-get-local-addrs,
+    /// @value(110)
+    sctp-sockopt-connectx,
+    /// @value(111)
+    sctp-sockopt-connectx3,
+    /// @value(113)
+    sctp-pr-supported,
+    /// @value(114)
+    sctp-default-prinfo,
+    /// @value(122)
+    sctp-sockopt-peeloff-flags,
+    /// @value(127)
+    sctp-event,
+  }
+
+  /// `SOL_SCTP` control message types (`enum sctp_cmsg_type`).
+  /// @repr(s32)
+  enum sctp-cmsg-type {
+    /// @value(0)
+    sctp-init,
+    /// @value(1)
+    sctp-sndrcv,
+    /// @value(2)
+    sctp-sndinfo,
+    /// @value(3)
+    sctp-rcvinfo,
+    /// @value(4)
+    sctp-nxtinfo,
+    /// @value(5)
+    sctp-prinfo,
+    /// @value(6)
+    sctp-authinfo,
+    /// @value(7)
+    sctp-dstaddrv4,
+    /// @value(8)
+    sctp-dstaddrv6,
+  }
+
+  /// `sinfo_flags`/`snd_flags` bits (`enum sctp_sinfo_flags`).
+  /// @repr(u16)
+  flags sctp-sinfo-flags {
+    /// @value(0x1)
+    sctp-unordered,
+    /// @value(0x2)
+    sctp-addr-over,
+    /// @value(0x4)
+    sctp-abort,
+    /// @value(0x8)
+    sctp-sack-immediately,
+    /// @value(0x40)
+    sctp-sendall,
+    /// @value(0x80)
+    sctp-pr-sctp-all,
+    /// `MSG_FIN`.
+    /// @value(0x200)
+    sctp-eof,
+    /// `MSG_NOTIFICATION`.
+    /// @value(0x8000)
+    sctp-notification,
+  }
+
+  /// Notification types (`enum sctp_sn_type`).
+  /// @repr(u16)
+  enum sctp-sn-type {
+    /// @value(32768)
+    sctp-data-io-event,
+    /// @value(32769)
+    sctp-assoc-change,
+    /// @value(32770)
+    sctp-peer-addr-change,
+    /// @value(32771)
+    sctp-send-failed,
+    /// @value(32772)
+    sctp-remote-error,
+    /// @value(32773)
+    sctp-shutdown-event,
+    /// @value(32774)
+    sctp-partial-delivery-event,
+    /// @value(32775)
+    sctp-adaptation-indication,
+    /// @value(32776)
+    sctp-authentication-event,
+    /// @value(32777)
+    sctp-sender-dry-event,
+    /// @value(32778)
+    sctp-stream-reset-event,
+    /// @value(32779)
+    sctp-assoc-reset-event,
+    /// @value(32780)
+    sctp-stream-change-event,
+    /// @value(32781)
+    sctp-send-failed-event,
+  }
+
+  /// `sac_state` of an `SCTP_ASSOC_CHANGE` (`enum sctp_sac_state`).
+  /// @repr(u16)
+  enum sctp-sac-state {
+    /// @value(0)
+    sctp-comm-up,
+    /// @value(1)
+    sctp-comm-lost,
+    /// @value(2)
+    sctp-restart,
+    /// @value(3)
+    sctp-shutdown-comp,
+    /// @value(4)
+    sctp-cant-str-assoc,
   }
 
   // ==== System V IPC ====
@@ -7301,8 +8532,17 @@ interface types {
     tiocsptlck,
     /// @value(0x40045436)
     tiocsig,
+    /// `FS_IOC_SETFLAGS` (`_IOW('f', 2, long)`, 32-bit `long`).
+    /// @value(0x40046602)
+    fs-ioc-setflags,
+    /// `FS_IOC_SETVERSION` (`_IOW('v', 2, long)`).
+    /// @value(0x40047602)
+    fs-ioc-setversion,
     /// @value(0x40085400)
     tfd-ioc-set-ticks,
+    /// `FS_IOC_FSSETXATTR` (`_IOW('X', 32, struct fsxattr)`).
+    /// @value(0x401c5820)
+    fs-ioc-fssetxattr,
     /// @value(0x402c542b)
     tcsets2,
     /// @value(0x402c542c)
@@ -7319,6 +8559,15 @@ interface types {
     tiocgptlck,
     /// @value(0x80045440)
     tiocgexcl,
+    /// `FS_IOC_GETFLAGS` (`_IOR('f', 1, long)`, 32-bit `long`).
+    /// @value(0x80046601)
+    fs-ioc-getflags,
+    /// `FS_IOC_GETVERSION` (`_IOR('v', 1, long)`): the inode's generation.
+    /// @value(0x80047601)
+    fs-ioc-getversion,
+    /// `FS_IOC_FSGETXATTR` (`_IOR('X', 31, struct fsxattr)`).
+    /// @value(0x801c581f)
+    fs-ioc-fsgetxattr,
     /// @value(0x802c542a)
     tcgets2,
     /// `_IOWR(PIDFS_IOCTL_MAGIC, 11, struct pidfd_info)` with the 88-byte `pidfd-info`
@@ -7327,6 +8576,24 @@ interface types {
     /// structure as both know.
     /// @value(0xc058ff0b)
     pidfd-get-info,
+    /// `SECCOMP_IOCTL_NOTIF_RECV`: `_IOWR('!', 0, struct seccomp_notif)` (`linux/seccomp.h`).
+    /// @value(0xc0502100)
+    seccomp-ioctl-notif-recv,
+    /// `SECCOMP_IOCTL_NOTIF_SEND`: `_IOWR('!', 1, struct seccomp_notif_resp)`.
+    /// @value(0xc0182101)
+    seccomp-ioctl-notif-send,
+    /// `SECCOMP_IOCTL_NOTIF_ID_VALID`: `_IOW('!', 2, __u64)`.
+    /// @value(0x40082102)
+    seccomp-ioctl-notif-id-valid,
+    /// `SECCOMP_IOCTL_NOTIF_ADDFD`: `_IOW('!', 3, struct seccomp_notif_addfd)`.
+    /// @value(0x40182103)
+    seccomp-ioctl-notif-addfd,
+    /// `SECCOMP_IOCTL_NOTIF_SET_FLAGS`: `_IOW('!', 4, __u64)`.
+    /// @value(0x40082104)
+    seccomp-ioctl-notif-set-flags,
+    /// `/dev/vsock`: the local CID (`_IO(7, 0xb9)`).
+    /// @value(0x7b9)
+    ioctl-vm-sockets-get-local-cid,
   }
 
   /// `_IOC_TYPE` bytes of ioctl request families.
@@ -8272,6 +9539,685 @@ interface types {
 
   /// @ptr(mut reflection-result)
   type reflection-result-ptr = uptr;
+
+  // ==== Sandboxing: seccomp, Landlock, keys, LSM ====
+
+  /// `seccomp` operations (first argument; `linux/seccomp.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  enum seccomp-op {
+    /// @value(0)
+    seccomp-set-mode-strict,
+    /// @value(1)
+    seccomp-set-mode-filter,
+    /// @value(2)
+    seccomp-get-action-avail,
+    /// @value(3)
+    seccomp-get-notif-sizes,
+  }
+
+  /// A task's seccomp mode, as `PR_GET_SECCOMP` and `/proc/[pid]/status` report it
+  /// (`linux/seccomp.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  enum seccomp-mode {
+    /// @value(0)
+    seccomp-mode-disabled,
+    /// @value(1)
+    seccomp-mode-strict,
+    /// @value(2)
+    seccomp-mode-filter,
+  }
+
+  /// `SECCOMP_SET_MODE_FILTER` flags (`linux/seccomp.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags seccomp-filter-flags {
+    /// @value(0x1)
+    seccomp-filter-flag-tsync,
+    /// @value(0x2)
+    seccomp-filter-flag-log,
+    /// @value(0x4)
+    seccomp-filter-flag-spec-allow,
+    /// @value(0x8)
+    seccomp-filter-flag-new-listener,
+    /// @value(0x10)
+    seccomp-filter-flag-tsync-esrch,
+    /// @value(0x20)
+    seccomp-filter-flag-wait-killable-recv,
+  }
+
+  /// What a seccomp filter returns: an action in the high 16 bits (`SECCOMP_RET_ACTION_FULL`)
+  /// and data in the low 16 (`SECCOMP_RET_DATA`) (`linux/seccomp.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  enum seccomp-ret {
+    /// @value(0x80000000)
+    seccomp-ret-kill-process,
+    /// @value(0x0)
+    seccomp-ret-kill-thread,
+    /// @value(0x0)
+    seccomp-ret-kill,
+    /// @value(0x30000)
+    seccomp-ret-trap,
+    /// @value(0x50000)
+    seccomp-ret-errno,
+    /// @value(0x7fc00000)
+    seccomp-ret-user-notif,
+    /// @value(0x7ff00000)
+    seccomp-ret-trace,
+    /// @value(0x7ffc0000)
+    seccomp-ret-log,
+    /// @value(0x7fff0000)
+    seccomp-ret-allow,
+    /// @value(0xffff0000)
+    seccomp-ret-action-full,
+    /// @value(0x7fff0000)
+    seccomp-ret-action,
+    /// @value(0xffff)
+    seccomp-ret-data,
+  }
+
+  /// `seccomp_notif_resp.flags` and `SECCOMP_IOCTL_NOTIF_SET_FLAGS` flags, and
+  /// `seccomp_notif_addfd.flags` (`linux/seccomp.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags seccomp-notif-flags {
+    /// `SECCOMP_USER_NOTIF_FLAG_CONTINUE` (response) and `SECCOMP_USER_NOTIF_FD_SYNC_WAKE_UP`
+    /// (`SET_FLAGS`).
+    /// @value(0x1)
+    seccomp-user-notif-flag-continue,
+    /// @value(0x1)
+    seccomp-user-notif-fd-sync-wake-up,
+    /// @value(0x1)
+    seccomp-addfd-flag-setfd,
+    /// @value(0x2)
+    seccomp-addfd-flag-send,
+  }
+
+  /// `seccomp_data.arch` and `si_arch` of wasixv2 tasks: riscv32's (`AUDIT_ARCH_RISCV32`,
+  /// `EM_RISCV | __AUDIT_ARCH_LE`, `linux/audit.h`), whose syscall table the ABI follows.
+  /// @repr(u32)
+  /// @c(unsigned)
+  enum audit-arch {
+    /// @value(0x400000f3)
+    audit-arch-riscv32,
+  }
+
+  /// What a seccomp filter runs over (`struct seccomp_data`): `nr` is the riscv32 syscall number
+  /// and `args` its six registers, each zero-extended. wasm has no program counter, so
+  /// `instruction-pointer` is 0.
+  /// @kernel-only
+  /// @size(64)
+  /// @align(8)
+  record seccomp-data {
+    nr: s32,
+    arch: u32,
+    instruction-pointer: u64,
+    args: list<u64, 6>,
+  }
+
+  /// `SECCOMP_GET_NOTIF_SIZES` result (`struct seccomp_notif_sizes`).
+  /// @kernel-only
+  /// @size(6)
+  /// @align(2)
+  record seccomp-notif-sizes {
+    seccomp-notif: u16,
+    seccomp-notif-resp: u16,
+    seccomp-data: u16,
+  }
+
+  /// A user notification (`struct seccomp_notif`), read with `SECCOMP_IOCTL_NOTIF_RECV`.
+  /// @kernel-only
+  /// @size(80)
+  /// @align(8)
+  record seccomp-notif {
+    id: u64,
+    pid: u32,
+    %flags: u32,
+    data: seccomp-data,
+  }
+
+  /// The answer to a user notification (`struct seccomp_notif_resp`).
+  /// @kernel-only
+  /// @size(24)
+  /// @align(8)
+  record seccomp-notif-resp {
+    id: u64,
+    val: s64,
+    error: s32,
+    %flags: u32,
+  }
+
+  /// `SECCOMP_IOCTL_NOTIF_ADDFD` argument (`struct seccomp_notif_addfd`).
+  /// @kernel-only
+  /// @size(24)
+  /// @align(8)
+  record seccomp-notif-addfd {
+    id: u64,
+    %flags: u32,
+    srcfd: u32,
+    newfd: u32,
+    newfd-flags: u32,
+  }
+
+  /// `landlock_create_ruleset` flags (`linux/landlock.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags landlock-create-ruleset-flags {
+    /// @value(0x1)
+    landlock-create-ruleset-version,
+    /// @value(0x2)
+    landlock-create-ruleset-errata,
+  }
+
+  /// `landlock_add_rule` flags (`linux/landlock.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags landlock-add-rule-flags {
+    /// @value(0x1)
+    landlock-add-rule-quiet,
+  }
+
+  /// `landlock_restrict_self` flags (`linux/landlock.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags landlock-restrict-self-flags {
+    /// @value(0x1)
+    landlock-restrict-self-log-same-exec-off,
+    /// @value(0x2)
+    landlock-restrict-self-log-new-exec-on,
+    /// @value(0x4)
+    landlock-restrict-self-log-subdomains-off,
+    /// @value(0x8)
+    landlock-restrict-self-tsync,
+  }
+
+  /// `landlock_add_rule` rule types (`enum landlock_rule_type`).
+  /// @repr(s32)
+  /// @c(int)
+  enum landlock-rule-type {
+    /// @value(1)
+    landlock-rule-path-beneath,
+    /// @value(2)
+    landlock-rule-net-port,
+  }
+
+  /// Filesystem access rights (`LANDLOCK_ACCESS_FS_*`, `linux/landlock.h`).
+  /// @repr(u64)
+  flags landlock-access-fs {
+    /// @value(0x1)
+    landlock-access-fs-execute,
+    /// @value(0x2)
+    landlock-access-fs-write-file,
+    /// @value(0x4)
+    landlock-access-fs-read-file,
+    /// @value(0x8)
+    landlock-access-fs-read-dir,
+    /// @value(0x10)
+    landlock-access-fs-remove-dir,
+    /// @value(0x20)
+    landlock-access-fs-remove-file,
+    /// @value(0x40)
+    landlock-access-fs-make-char,
+    /// @value(0x80)
+    landlock-access-fs-make-dir,
+    /// @value(0x100)
+    landlock-access-fs-make-reg,
+    /// @value(0x200)
+    landlock-access-fs-make-sock,
+    /// @value(0x400)
+    landlock-access-fs-make-fifo,
+    /// @value(0x800)
+    landlock-access-fs-make-block,
+    /// @value(0x1000)
+    landlock-access-fs-make-sym,
+    /// @value(0x2000)
+    landlock-access-fs-refer,
+    /// @value(0x4000)
+    landlock-access-fs-truncate,
+    /// @value(0x8000)
+    landlock-access-fs-ioctl-dev,
+    /// @value(0x10000)
+    landlock-access-fs-resolve-unix,
+  }
+
+  /// Network access rights (`LANDLOCK_ACCESS_NET_*`, `linux/landlock.h`).
+  /// @repr(u64)
+  flags landlock-access-net {
+    /// @value(0x1)
+    landlock-access-net-bind-tcp,
+    /// @value(0x2)
+    landlock-access-net-connect-tcp,
+    /// @value(0x4)
+    landlock-access-net-bind-udp,
+    /// @value(0x8)
+    landlock-access-net-connect-send-udp,
+  }
+
+  /// IPC scopes (`LANDLOCK_SCOPE_*`, `linux/landlock.h`).
+  /// @repr(u64)
+  flags landlock-scope {
+    /// @value(0x1)
+    landlock-scope-abstract-unix-socket,
+    /// @value(0x2)
+    landlock-scope-signal,
+  }
+
+  /// `LANDLOCK_RULE_PATH_BENEATH` rule (`struct landlock_path_beneath_attr`), packed: 12 bytes
+  /// at any alignment.
+  /// @kernel-only
+  /// @size(12)
+  /// @align(1)
+  record landlock-path-beneath-attr {
+    allowed-access: list<u8, 8>,
+    parent-fd: list<u8, 4>,
+  }
+
+  /// Special key and keyring ids (`KEY_SPEC_*`, `linux/keyctl.h`).
+  /// @repr(s32)
+  /// @c(int)
+  enum key-spec {
+    /// @value(-1)
+    key-spec-thread-keyring,
+    /// @value(-2)
+    key-spec-process-keyring,
+    /// @value(-3)
+    key-spec-session-keyring,
+    /// @value(-4)
+    key-spec-user-keyring,
+    /// @value(-5)
+    key-spec-user-session-keyring,
+    /// @value(-6)
+    key-spec-group-keyring,
+    /// @value(-7)
+    key-spec-reqkey-auth-key,
+    /// @value(-8)
+    key-spec-requestor-keyring,
+  }
+
+  /// `KEYCTL_SET_REQKEY_KEYRING` defaults (`KEY_REQKEY_DEFL_*`, `linux/keyctl.h`).
+  /// @repr(s32)
+  /// @c(int)
+  enum key-reqkey-defl {
+    /// @value(-1)
+    key-reqkey-defl-no-change,
+    /// @value(0)
+    key-reqkey-defl-default,
+    /// @value(1)
+    key-reqkey-defl-thread-keyring,
+    /// @value(2)
+    key-reqkey-defl-process-keyring,
+    /// @value(3)
+    key-reqkey-defl-session-keyring,
+    /// @value(4)
+    key-reqkey-defl-user-keyring,
+    /// @value(5)
+    key-reqkey-defl-user-session-keyring,
+    /// @value(6)
+    key-reqkey-defl-group-keyring,
+    /// @value(7)
+    key-reqkey-defl-requestor-keyring,
+  }
+
+  /// `keyctl` operations (first argument; `linux/keyctl.h`).
+  /// @repr(s32)
+  /// @c(int)
+  enum keyctl-op {
+    /// @value(0)
+    keyctl-get-keyring-id,
+    /// @value(1)
+    keyctl-join-session-keyring,
+    /// @value(2)
+    keyctl-update,
+    /// @value(3)
+    keyctl-revoke,
+    /// @value(4)
+    keyctl-chown,
+    /// @value(5)
+    keyctl-setperm,
+    /// @value(6)
+    keyctl-describe,
+    /// @value(7)
+    keyctl-clear,
+    /// @value(8)
+    keyctl-link,
+    /// @value(9)
+    keyctl-unlink,
+    /// @value(10)
+    keyctl-search,
+    /// @value(11)
+    keyctl-read,
+    /// @value(12)
+    keyctl-instantiate,
+    /// @value(13)
+    keyctl-negate,
+    /// @value(14)
+    keyctl-set-reqkey-keyring,
+    /// @value(15)
+    keyctl-set-timeout,
+    /// @value(16)
+    keyctl-assume-authority,
+    /// @value(17)
+    keyctl-get-security,
+    /// @value(18)
+    keyctl-session-to-parent,
+    /// @value(19)
+    keyctl-reject,
+    /// @value(20)
+    keyctl-instantiate-iov,
+    /// @value(21)
+    keyctl-invalidate,
+    /// @value(22)
+    keyctl-get-persistent,
+    /// @value(23)
+    keyctl-dh-compute,
+    /// @value(24)
+    keyctl-pkey-query,
+    /// @value(25)
+    keyctl-pkey-encrypt,
+    /// @value(26)
+    keyctl-pkey-decrypt,
+    /// @value(27)
+    keyctl-pkey-sign,
+    /// @value(28)
+    keyctl-pkey-verify,
+    /// @value(29)
+    keyctl-restrict-keyring,
+    /// @value(30)
+    keyctl-move,
+    /// @value(31)
+    keyctl-capabilities,
+    /// @value(32)
+    keyctl-watch-key,
+  }
+
+  /// `KEYCTL_MOVE` flags and `KEYCTL_CAPABILITIES` bits (`linux/keyctl.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags keyctl-flags {
+    /// @value(0x1)
+    keyctl-move-excl,
+    /// @value(0x1)
+    keyctl-caps0-capabilities,
+    /// @value(0x2)
+    keyctl-caps0-persistent-keyrings,
+    /// @value(0x4)
+    keyctl-caps0-diffie-hellman,
+    /// @value(0x8)
+    keyctl-caps0-public-key,
+    /// @value(0x10)
+    keyctl-caps0-big-key,
+    /// @value(0x20)
+    keyctl-caps0-invalidate,
+    /// @value(0x40)
+    keyctl-caps0-restrict-keyring,
+    /// @value(0x80)
+    keyctl-caps0-move,
+    /// @value(0x1)
+    keyctl-caps1-ns-keyring-name,
+    /// @value(0x2)
+    keyctl-caps1-ns-key-tag,
+    /// @value(0x4)
+    keyctl-caps1-notifications,
+  }
+
+  /// Key permissions (`key_perm_t`, `linux/key.h`; keyutils' `KEY_POS_*` and friends): one byte
+  /// each for the possessor, the owner, the group and others.
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags key-perm {
+    /// @value(0x01000000)
+    key-pos-view,
+    /// @value(0x02000000)
+    key-pos-read,
+    /// @value(0x04000000)
+    key-pos-write,
+    /// @value(0x08000000)
+    key-pos-search,
+    /// @value(0x10000000)
+    key-pos-link,
+    /// @value(0x20000000)
+    key-pos-setattr,
+    /// @value(0x3f000000)
+    key-pos-all,
+    /// @value(0x00010000)
+    key-usr-view,
+    /// @value(0x00020000)
+    key-usr-read,
+    /// @value(0x00040000)
+    key-usr-write,
+    /// @value(0x00080000)
+    key-usr-search,
+    /// @value(0x00100000)
+    key-usr-link,
+    /// @value(0x00200000)
+    key-usr-setattr,
+    /// @value(0x003f0000)
+    key-usr-all,
+    /// @value(0x00000100)
+    key-grp-view,
+    /// @value(0x00000200)
+    key-grp-read,
+    /// @value(0x00000400)
+    key-grp-write,
+    /// @value(0x00000800)
+    key-grp-search,
+    /// @value(0x00001000)
+    key-grp-link,
+    /// @value(0x00002000)
+    key-grp-setattr,
+    /// @value(0x00003f00)
+    key-grp-all,
+    /// @value(0x00000001)
+    key-oth-view,
+    /// @value(0x00000002)
+    key-oth-read,
+    /// @value(0x00000004)
+    key-oth-write,
+    /// @value(0x00000008)
+    key-oth-search,
+    /// @value(0x00000010)
+    key-oth-link,
+    /// @value(0x00000020)
+    key-oth-setattr,
+    /// @value(0x0000003f)
+    key-oth-all,
+  }
+
+  /// LSM ids (`LSM_ID_*`, `linux/lsm.h`).
+  /// @repr(u64)
+  enum lsm-id {
+    /// @value(0)
+    lsm-id-undef,
+    /// @value(100)
+    lsm-id-capability,
+    /// @value(101)
+    lsm-id-selinux,
+    /// @value(102)
+    lsm-id-smack,
+    /// @value(103)
+    lsm-id-tomoyo,
+    /// @value(104)
+    lsm-id-apparmor,
+    /// @value(105)
+    lsm-id-yama,
+    /// @value(106)
+    lsm-id-loadpin,
+    /// @value(107)
+    lsm-id-safesetid,
+    /// @value(108)
+    lsm-id-lockdown,
+    /// @value(109)
+    lsm-id-bpf,
+    /// @value(110)
+    lsm-id-landlock,
+    /// @value(111)
+    lsm-id-ima,
+    /// @value(112)
+    lsm-id-evm,
+    /// @value(113)
+    lsm-id-ipe,
+  }
+
+  /// LSM attributes (`LSM_ATTR_*`, `linux/lsm.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  enum lsm-attr {
+    /// @value(0)
+    lsm-attr-undef,
+    /// @value(100)
+    lsm-attr-current,
+    /// @value(101)
+    lsm-attr-exec,
+    /// @value(102)
+    lsm-attr-fscreate,
+    /// @value(103)
+    lsm-attr-keycreate,
+    /// @value(104)
+    lsm-attr-prev,
+    /// @value(105)
+    lsm-attr-sockcreate,
+  }
+
+  /// `lsm_get_self_attr` flags (`linux/lsm.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags lsm-flags {
+    /// @value(0x1)
+    lsm-flag-single,
+  }
+
+  // ==== Tracing and introspection: ptrace, kcmp, ioprio ====
+
+  /// `PTRACE_GET_SYSCALL_INFO` at a syscall-entry stop (`linux/ptrace.h`).
+  /// @kernel-only
+  /// @size(56)
+  /// @align(8)
+  record ptrace-syscall-info-entry {
+    nr: u64,
+    args: list<u64, 6>,
+  }
+
+  /// `PTRACE_GET_SYSCALL_INFO` at a syscall-exit stop (`linux/ptrace.h`).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(8)
+  record ptrace-syscall-info-exit {
+    rval: s64,
+    is-error: u8,
+    reserved: list<u8, 7>,
+  }
+
+  /// `PTRACE_GET_SYSCALL_INFO` at a `PTRACE_EVENT_SECCOMP` stop (`linux/ptrace.h`).
+  /// @kernel-only
+  /// @size(64)
+  /// @align(8)
+  record ptrace-syscall-info-seccomp {
+    nr: u64,
+    args: list<u64, 6>,
+    ret-data: u32,
+    reserved2: u32,
+  }
+
+  /// What `ptrace_syscall_info` holds for its `op`.
+  /// @kernel-only
+  /// @union
+  /// @size(64)
+  /// @align(8)
+  record ptrace-syscall-info-data {
+    entry: ptrace-syscall-info-entry,
+    exit: ptrace-syscall-info-exit,
+    seccomp: ptrace-syscall-info-seccomp,
+  }
+
+  /// `PTRACE_GET_SYSCALL_INFO` result (`struct ptrace_syscall_info`). wasm has no program
+  /// counter: `instruction-pointer` is 0, `stack-pointer` the shadow stack pointer.
+  /// @kernel-only
+  /// @size(88)
+  /// @align(8)
+  record ptrace-syscall-info {
+    op: u8,
+    reserved: u8,
+    %flags: u16,
+    arch: u32,
+    instruction-pointer: u64,
+    stack-pointer: u64,
+    data: ptrace-syscall-info-data,
+  }
+
+  /// `PTRACE_PEEKSIGINFO` arguments (`struct ptrace_peeksiginfo_args`).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(8)
+  record ptrace-peeksiginfo-args {
+    off: u64,
+    %flags: u32,
+    nr: s32,
+  }
+
+  /// `kcmp` comparison types (`enum kcmp_type`, `linux/kcmp.h`).
+  /// @repr(s32)
+  /// @c(int)
+  enum kcmp-type {
+    /// @value(0)
+    kcmp-file,
+    /// @value(1)
+    kcmp-vm,
+    /// @value(2)
+    kcmp-files,
+    /// @value(3)
+    kcmp-fs,
+    /// @value(4)
+    kcmp-sighand,
+    /// @value(5)
+    kcmp-io,
+    /// @value(6)
+    kcmp-sysvsem,
+    /// @value(7)
+    kcmp-epoll-tfd,
+  }
+
+  /// `KCMP_EPOLL_TFD` slot (`struct kcmp_epoll_slot`, `linux/kcmp.h`).
+  /// @kernel-only
+  /// @size(12)
+  /// @align(4)
+  record kcmp-epoll-slot {
+    efd: u32,
+    tfd: u32,
+    toff: u32,
+  }
+
+  /// @ptr(const kcmp-epoll-slot)
+  type const-kcmp-epoll-slot-ptr = uptr;
+
+  /// I/O scheduling classes (`IOPRIO_CLASS_*`, `linux/ioprio.h`).
+  /// @repr(s32)
+  /// @c(int)
+  enum ioprio-class {
+    /// @value(0)
+    ioprio-class-none,
+    /// @value(1)
+    ioprio-class-rt,
+    /// @value(2)
+    ioprio-class-be,
+    /// @value(3)
+    ioprio-class-idle,
+    /// @value(7)
+    ioprio-class-invalid,
+  }
+
+  /// `ioprio_get`/`ioprio_set` targets (`IOPRIO_WHO_*`, `linux/ioprio.h`).
+  /// @repr(s32)
+  /// @c(int)
+  enum ioprio-who {
+    /// @value(1)
+    ioprio-who-process,
+    /// @value(2)
+    ioprio-who-pgrp,
+    /// @value(3)
+    ioprio-who-user,
+  }
 
   // ==== Checkpointing (wasixv2 extensions) ====
 

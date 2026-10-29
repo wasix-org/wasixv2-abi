@@ -6,9 +6,9 @@ use std::fmt::Write as _;
 
 use anyhow::{Result, bail};
 
-use crate::ir::Model;
-use crate::rust::{header, push_docs};
-use crate::shape::{Method, methods, signature_types, slice_type, uses_slice};
+use crate::ir::{Model, Prim, SplitOrder, TyRef};
+use crate::rust::{cast, header, push_docs, ty};
+use crate::shape::{Method, Param, Repr, methods, repr, signature_types, slice_type, uses_slice};
 
 /// Items of `wasixv2-syscalls` the generated module names, which ABI types must not shadow.
 const LOCAL_ITEMS: &[&str] = &[
@@ -37,7 +37,8 @@ pub fn generate(model: &Model, source: &str) -> Result<String> {
     g.out.push_str(&header(source));
     g.imports(&methods, &types);
     g.trait_def(&methods);
-    g.enums(&methods);
+    g.enums(model, &methods);
+    g.registers(model, &methods);
     g.dispatch(&methods);
     g.out.push_str(LAYER);
     g.layered(&methods);
@@ -97,7 +98,7 @@ impl Gen {
         self.line("}");
     }
 
-    fn enums(&mut self, methods: &[Method]) {
+    fn enums(&mut self, model: &Model, methods: &[Method]) {
         self.line("");
         self.line("/// One syscall with its arguments, for layers that treat every call alike.");
         self.line("#[derive(Clone, Copy, Debug, PartialEq, Eq)]");
@@ -125,6 +126,81 @@ impl Gen {
                 }
             }
         }
+        self.line("}");
+        self.line("");
+        self.line("impl SyscallRet {");
+        self.line(
+            "/// The raw result the guest sees, as riscv32's `a0` holds it and a tracer reads it",
+        );
+        self.line("/// (`syscall_get_return_value`): a 32-bit `long`, sign-extended; 64-bit values whole.");
+        self.line(
+            "/// The inverse of [`Syscall::ret_from_raw`]; a call without a value returns 0.",
+        );
+        self.line("pub fn to_raw(&self) -> i64 {");
+        self.line("match *self {");
+        for m in methods {
+            let value = match &m.ret {
+                Some(t) => format!("SyscallRet::{}(v) => {}", m.variant, encode_raw(model, t)),
+                None => format!("SyscallRet::{} => 0", m.variant),
+            };
+            let _ = writeln!(self.out, "{value},");
+        }
+        self.line("}");
+        self.line("}");
+        self.line("}");
+    }
+
+    /// `impl Syscall`: the call as riscv32 makes it, for filters and tracers that see the raw
+    /// registers (`seccomp_data`, `ptrace`), and the typed result of a raw return value.
+    fn registers(&mut self, model: &Model, methods: &[Method]) {
+        self.line("");
+        self.line("impl Syscall {");
+        self.line("/// The riscv32 syscall number, as `seccomp_data.nr` and `PTRACE_GET_SYSCALL_INFO` see it;");
+        self.line("/// `None` for the wasm-specific extensions, which have none.");
+        self.line("pub fn nr(&self) -> Option<u32> {");
+        self.line("match self {");
+        for m in methods {
+            let nr = m.f.nr.map_or("None".to_string(), |n| format!("Some({n})"));
+            let _ = writeln!(self.out, "{} => {nr},", wildcard(m));
+        }
+        self.line("}");
+        self.line("}");
+        self.line("");
+        self.line(
+            "/// The arguments as riscv32 passes them in `a0` to `a5`, each zero-extended from its",
+        );
+        self.line("/// 32-bit register as `seccomp_data.args` holds them: a 64-bit argument riscv32 splits");
+        self.line("/// (`@merged-i64`) takes two registers, a pointer and length pair two, and an extension's");
+        self.line("/// arguments past the sixth are left out.");
+        self.line("pub fn args(&self) -> [u64; 6] {");
+        self.line("match *self {");
+        for m in methods {
+            let regs = registers(model, m);
+            let _ = writeln!(self.out, "{} => regs([{}]),", pattern(m), regs.join(", "));
+        }
+        self.line("}");
+        self.line("}");
+        self.line("");
+        self.line("/// What this call returns when its raw result (the value or `-errno` the guest sees) is");
+        self.line("/// `raw`, for a layer that answers a call without running it.");
+        self.line("pub fn ret_from_raw(&self, raw: i64) -> SyscallRet {");
+        self.line("match self {");
+        for m in methods {
+            let value = match &m.ret {
+                Some(t) => format!("SyscallRet::{}({})", m.variant, decode_raw(model, t)),
+                None => format!("SyscallRet::{}", m.variant),
+            };
+            let _ = writeln!(self.out, "{} => {value},", wildcard(m));
+        }
+        self.line("}");
+        self.line("}");
+        self.line("}");
+        self.line("");
+        self.line("/// `r` padded with zeroes, or cut, to six registers.");
+        self.line("fn regs<const N: usize>(r: [u64; N]) -> [u64; 6] {");
+        self.line("let mut out = [0; 6];");
+        self.line("for (o, r) in out.iter_mut().zip(r) { *o = r; }");
+        self.line("out");
         self.line("}");
     }
 
@@ -156,7 +232,7 @@ impl Gen {
 
     fn layered(&mut self, methods: &[Method]) {
         self.line("");
-        self.line("impl<L: Layer, S: Syscalls> Syscalls for Layered<L, S> {");
+        self.line("impl<L: Layer<S>, S: Syscalls> Syscalls for Layered<L, S> {");
         for m in methods {
             self.line("");
             if m.too_many_args() {
@@ -200,6 +276,79 @@ fn call_args(m: &Method) -> Vec<String> {
     args
 }
 
+/// `Syscall::Name { .. }`, or `Syscall::Name` for a call without params.
+fn wildcard(m: &Method) -> String {
+    match m.params.is_empty() {
+        true => format!("Syscall::{}", m.variant),
+        false => format!("Syscall::{} {{ .. }}", m.variant),
+    }
+}
+
+/// The register values of `m`'s raw params, in import order, from the typed params bound by
+/// [`pattern`].
+fn registers(model: &Model, m: &Method) -> Vec<String> {
+    let mut out = Vec::new();
+    for (i, r) in m.raw.iter().enumerate() {
+        let slice = m.params.iter().find_map(|p| match p {
+            Param::Slice { name, ptr, .. } if *ptr == i => Some(format!("{name}.addr")),
+            Param::Slice { name, len, .. } if *len == i => Some(format!("{name}.len")),
+            _ => None,
+        });
+        if let Some(field) = slice {
+            out.push(format!("u64::from({field})"));
+            continue;
+        }
+        let name = m.params.iter().find_map(|p| match p {
+            Param::Value { name, raw, .. } if *raw == i => Some(name.as_str()),
+            _ => None,
+        });
+        let name = name.expect("every raw param is a value or part of a slice");
+        let (value, p) = match repr(model, &r.ty) {
+            Repr::Int(p) => (name.to_string(), p),
+            Repr::Ptr => (format!("{name}.addr()"), Prim::U32),
+            Repr::Wrapped { prim, .. } => (format!("{name}.0"), prim),
+        };
+        let wit = &m.f.params[i].name;
+        match p {
+            Prim::U64 | Prim::S64 if m.f.merged_i64.iter().any(|x| &x.param == wit) => {
+                let v = cast(&value, p, Prim::U64);
+                let (lo, hi) = (format!("({v}) & 0xffff_ffff"), format!("({v}) >> 32"));
+                match m.f.split_order(wit) {
+                    SplitOrder::LoHi => out.extend([lo, hi]),
+                    SplitOrder::HiLo => out.extend([hi, lo]),
+                }
+            }
+            Prim::U64 | Prim::S64 => out.push(cast(&value, p, Prim::U64)),
+            Prim::U32 => out.push(format!("u64::from({value})")),
+            _ => out.push(format!("u64::from({})", cast(&value, p, Prim::U32))),
+        }
+    }
+    out
+}
+
+/// The typed success value `t` of a raw result `raw` (an `i64`).
+fn decode_raw(model: &Model, t: &TyRef) -> String {
+    match repr(model, t) {
+        Repr::Int(p) => cast("raw", Prim::S64, p),
+        Repr::Ptr => format!("{}::new(raw as u32)", ty(t)),
+        Repr::Wrapped { ctor, prim } => format!("{ctor}({})", cast("raw", Prim::S64, prim)),
+    }
+}
+
+/// `v`, the value of a result of type `t`, as the raw `i64` a register holds (see
+/// [`decode_raw`]): 32-bit values sign-extended as a `long`, 64-bit ones whole.
+fn encode_raw(model: &Model, t: &TyRef) -> String {
+    let widen = |expr: &str, p: Prim| match p.size() {
+        8 => cast(expr, p, Prim::S64),
+        _ => format!("{} as i64", cast(expr, p, Prim::S32)),
+    };
+    match repr(model, t) {
+        Repr::Int(p) => widen("v", p),
+        Repr::Ptr => "v.addr() as i32 as i64".to_string(),
+        Repr::Wrapped { prim, .. } => widen("v.0", prim),
+    }
+}
+
 /// `Syscall::Name { a, b }`, also usable as an expression.
 fn pattern(m: &Method) -> String {
     let names = m.param_names();
@@ -221,9 +370,12 @@ const TRAIT_DOCS: &str = r#"
 
 const LAYER: &str = r#"
 /// A layer that sees every syscall as a [`Syscall`] value.
+///
+/// A layer is written for the syscalls `S` it runs in front of: a generic one (a tracer) for
+/// every `S`, one that needs more of what it wraps (the kernel's syscall entry) for that type.
 #[allow(async_fn_in_trait)]
-pub trait Layer {
-    async fn call<S: Syscalls>(
+pub trait Layer<S: Syscalls> {
+    async fn call(
         &self,
         caller: &Caller<'_>,
         call: Syscall,
@@ -331,6 +483,36 @@ pub(crate) mod tests {
             "use wasixv2_abi::{Cstr, Errno, Fd};",
             "use crate::{caller::Caller, memory::UserSliceMut, result::SysResult};",
             "fn take_image(&self, task: crate::TaskId) -> Option<crate::Image> {",
+        ] {
+            assert!(out.contains(want), "missing `{want}` in:\n{out}");
+        }
+    }
+
+    #[test]
+    fn calls_know_their_registers() {
+        let out = generate(
+            &model(
+                "/// @nr(63)\n/// @slice(buf, count)\n/// @returns(u32)\nread: func(fd: fd, buf: buf, count: usize) -> slong;\n\
+                 /// @nr(67)\n/// @merged-i64(pos)\npread: func(fd: fd, buf: uptr, pos: s64) -> slong;\n\
+                 /// @nr(62)\n/// @merged-i64(pos, hi-lo)\nllseek: func(pos: s64) -> slong;\n\
+                 /// @returns(fd)\nopenat: func(dfd: fd, path: cstr) -> slong;\n\
+                 /// @noreturn\nexit-group: func(error-code: s32);",
+            ),
+            "t.wit",
+        )
+        .unwrap();
+        for want in [
+            "Syscall::Read { .. } => Some(63),",
+            "Syscall::Openat { .. } => None,",
+            "Syscall::Read { fd, buf } => regs([u64::from(fd.0 as u32), u64::from(buf.addr), u64::from(buf.len)]),",
+            "Syscall::Pread { fd, buf, pos } => regs([u64::from(fd.0 as u32), u64::from(buf), (pos as u64) & 0xffff_ffff, (pos as u64) >> 32]),",
+            "Syscall::Llseek { pos } => regs([(pos as u64) >> 32, (pos as u64) & 0xffff_ffff]),",
+            "Syscall::Openat { dfd, path } => regs([u64::from(dfd.0 as u32), u64::from(path.addr())]),",
+            "Syscall::Read { .. } => SyscallRet::Read(raw as u32),",
+            "Syscall::Openat { .. } => SyscallRet::Openat(Fd(raw as i32)),",
+            "Syscall::ExitGroup { .. } => SyscallRet::ExitGroup,",
+            "pub trait Layer<S: Syscalls> {",
+            "impl<L: Layer<S>, S: Syscalls> Syscalls for Layered<L, S> {",
         ] {
             assert!(out.contains(want), "missing `{want}` in:\n{out}");
         }
