@@ -1082,6 +1082,17 @@ interface types {
     at-fdcwd,
   }
 
+  /// Special pidfd values that name the caller (`linux/fcntl.h`), for the calls that take a
+  /// pidfd (`pidfd_send_signal`, `pidfd_getfd`, `process_madvise`, ...).
+  /// @repr(s32)
+  /// @c(int)
+  enum pidfd-self {
+    /// @value(-10000)
+    pidfd-self-thread,
+    /// @value(-10001)
+    pidfd-self-thread-group,
+  }
+
   /// `AT_*` flags for `*at` syscalls (`linux/fcntl.h`).
   /// Some bits are reused with different meanings by individual syscalls (`AT_EACCESS` == `AT_REMOVEDIR`).
   /// @repr(u32)
@@ -8042,6 +8053,28 @@ interface types {
     off: u64,
     %flags: u32,
     nr: s32,
+  }
+
+  /// `PTRACE_SECCOMP_GET_METADATA` argument and result (`struct seccomp_metadata`): the
+  /// filter's index, oldest first, in; its `SECCOMP_FILTER_FLAG_*` flags out.
+  /// @kernel-only
+  /// @size(16)
+  /// @align(8)
+  record seccomp-metadata {
+    filter-off: u64,
+    %flags: u64,
+  }
+
+  /// `PTRACE_GET_RSEQ_CONFIGURATION` result (`struct ptrace_rseq_configuration`).
+  /// @kernel-only
+  /// @size(24)
+  /// @align(8)
+  record ptrace-rseq-configuration {
+    rseq-abi-pointer: u64,
+    rseq-abi-size: u32,
+    signature: u32,
+    %flags: u32,
+    pad: u32,
   }
 
   /// `kcmp` comparison types (`enum kcmp_type`, `linux/kcmp.h`).
