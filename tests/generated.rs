@@ -196,3 +196,21 @@ fn syscall_metadata() {
             .any(|s| s.name == "io_setup" && s.unsupported)
     );
 }
+
+#[test]
+fn watch_queue_uapi_is_available_to_consumers() {
+    // linux/watch_queue.h: fixed layouts, packed type/subtype and pipe ioctl values.
+    let root = repo_root();
+    let generated = generate_abi(&root.join(WIT), WIT, Target::WASM32).unwrap();
+    for definition in [
+        "pub struct WatchNotification {",
+        "pub struct KeyNotification {",
+        "pub struct WatchNotificationTypeFilter {",
+        "pub struct WatchNotificationRemoval {",
+        "pub const O_NOTIFICATION_PIPE: Self = Self(0x80)",
+        "pub const IOC_WATCH_QUEUE_SET_SIZE: Self = Self(22368)",
+        "pub const IOC_WATCH_QUEUE_SET_FILTER: Self = Self(22369)",
+    ] {
+        assert!(generated.contains(definition), "missing {definition}");
+    }
+}

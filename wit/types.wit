@@ -1034,6 +1034,9 @@ interface types {
     o-creat,
     /// @value(0x80)
     o-excl,
+    /// Notification pipe selection (linux/watch_queue.h); aliases O_EXCL for pipe2 only.
+    /// @value(0x80)
+    o-notification-pipe,
     /// @value(0x100)
     o-noctty,
     /// @value(0x200)
@@ -2343,6 +2346,111 @@ interface types {
     fan-info,
     /// @value(0xff)
     fan-errno-mask,
+  }
+
+  // ==== Watch queues (linux/watch_queue.h) ====
+
+  /// Packed Linux watch_notification header: low 24 bits are type, high 8 bits subtype.
+  /// @c(struct watch_notification)
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record watch-notification {
+    type-subtype: u32,
+    info: u32,
+  }
+
+  /// A filter's Linux UAPI layout; unknown types are ignored.
+  /// @c(struct watch_notification_type_filter)
+  /// @kernel-only
+  /// @size(44)
+  /// @align(4)
+  record watch-notification-type-filter {
+    %type: u32,
+    info-filter: u32,
+    info-mask: u32,
+    subtype-filter: list<u32, 8>,
+  }
+
+  /// Fixed header; nr_filters watch-notification-type-filter records follow it.
+  /// @c(struct watch_notification_filter)
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record watch-notification-filter {
+    nr-filters: u32,
+    reserved: u32,
+  }
+
+  /// Removal of a watched object, bypassing notification filters.
+  /// @c(struct watch_notification_removal)
+  /// @kernel-only
+  /// @size(16)
+  /// @align(8)
+  record watch-notification-removal {
+    watch: watch-notification,
+    id: u64,
+  }
+
+  /// Key change event; aux is the linked/unlinked key serial or the attribute value.
+  /// @c(struct key_notification)
+  /// @kernel-only
+  /// @size(16)
+  /// @align(4)
+  record key-notification {
+    watch: watch-notification,
+    key-id: u32,
+    aux: u32,
+  }
+
+  /// @repr(u32)
+  /// @c(unsigned)
+  enum watch-notification-type {
+    /// @value(0)
+    watch-type-meta,
+    /// @value(1)
+    watch-type-key-notify,
+  }
+
+  /// @repr(u32)
+  /// @c(unsigned)
+  enum watch-meta-notification-subtype {
+    /// @value(0)
+    watch-meta-removal-notification,
+    /// @value(1)
+    watch-meta-loss-notification,
+  }
+
+  /// @repr(u32)
+  /// @c(unsigned)
+  enum key-notification-subtype {
+    /// @value(0)
+    notify-key-instantiated,
+    /// @value(1)
+    notify-key-updated,
+    /// @value(2)
+    notify-key-linked,
+    /// @value(3)
+    notify-key-unlinked,
+    /// @value(4)
+    notify-key-cleared,
+    /// @value(5)
+    notify-key-revoked,
+    /// @value(6)
+    notify-key-invalidated,
+    /// @value(7)
+    notify-key-setattr,
+  }
+
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags watch-info {
+    /// @value(0x7f)
+    watch-info-length,
+    /// @value(0xff00)
+    watch-info-id,
+    /// @value(0xffff0000)
+    watch-info-type-info,
   }
 
   // ==== Polling and event notification ====
@@ -6740,6 +6848,10 @@ interface types {
   /// @repr(u32)
   /// @c(unsigned)
   enum ioctl-request {
+    /// @value(0x5760)
+    ioc-watch-queue-set-size,
+    /// @value(0x5761)
+    ioc-watch-queue-set-filter,
     /// @value(21505)
     tcgets,
     /// @value(21506)
