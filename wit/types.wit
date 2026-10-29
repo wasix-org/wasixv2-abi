@@ -2148,6 +2148,17 @@ interface types {
     error-count: u32,
   }
 
+  /// Access range reported with FAN_PRE_ACCESS (linux/fanotify.h).
+  /// @kernel-only
+  /// @size(24)
+  /// @align(8)
+  record fanotify-event-info-range {
+    hdr: fanotify-event-info-header,
+    pad: u32,
+    offset: u64,
+    count: u64,
+  }
+
   /// A mount record (`struct fanotify_event_info_mnt`).
   /// @kernel-only
   /// @size(16)
