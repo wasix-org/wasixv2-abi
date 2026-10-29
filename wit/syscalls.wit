@@ -798,9 +798,12 @@ interface syscalls {
   ///
   /// fork (no `CLONE_VM`) works only in the asyncify build configuration. The host unwinds the stack
   /// into linear memory, copies the memory for the child and rewinds both, so the call returns the
-  /// child's pid in the parent and 0 in the child.
+  /// child's pid in the parent and 0 in the child. With `CLONE_VFORK`, the parent's call returns
+  /// once the child exited or its `execve` replaced its memory.
   ///
-  /// Threads use `thread-spawn` instead, since the new thread needs its own entry point.
+  /// Threads, and processes that share the caller's memory without being its vfork child
+  /// (`CLONE_VM` without `CLONE_VFORK`), use `thread-spawn` instead, since the new task needs its
+  /// own entry point.
   /// @nr(220)
   clone: func(
     clone-flags: ulong,
