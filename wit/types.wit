@@ -6753,6 +6753,147 @@ interface types {
     resv2: u32,
   }
 
+  /// One buffer of a provided buffer ring (`struct io_uring_buf`). The ring's tail overlays
+  /// the `resv` of its first entry (`struct io_uring_buf_ring`).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(8)
+  record io-uring-buf {
+    addr: u64,
+    len: u32,
+    bid: u16,
+    resv: u16,
+  }
+
+  /// `IORING_(UN)REGISTER_PBUF_RING` argument (`struct io_uring_buf_reg`).
+  /// @kernel-only
+  /// @size(40)
+  /// @align(8)
+  record io-uring-buf-reg {
+    ring-addr: u64,
+    ring-entries: u32,
+    bgid: u16,
+    %flags: u16,
+    min-left: u32,
+    resv: list<u32, 5>,
+  }
+
+  /// `IORING_REGISTER_PBUF_STATUS` argument (`struct io_uring_buf_status`).
+  /// @kernel-only
+  /// @size(40)
+  /// @align(4)
+  record io-uring-buf-status {
+    buf-group: u32,
+    head: u32,
+    resv: list<u32, 8>,
+  }
+
+  /// `io_uring_buf_reg.flags` (`enum io_uring_register_pbuf_ring_flags`).
+  /// @repr(u16)
+  flags iou-pbuf-ring-flags {
+    /// The kernel allocates the ring, which the application maps at
+    /// `IORING_OFF_PBUF_RING | bgid << IORING_OFF_PBUF_SHIFT`.
+    /// @value(0x1)
+    iou-pbuf-ring-mmap,
+    /// Buffers are consumed incrementally.
+    /// @value(0x2)
+    iou-pbuf-ring-inc,
+  }
+
+  /// `IORING_REGISTER_RING_FDS` and `IORING_UNREGISTER_RING_FDS` argument
+  /// (`struct io_uring_rsrc_update`).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(8)
+  record io-uring-rsrc-update {
+    offset: u32,
+    resv: u32,
+    data: u64,
+  }
+
+  /// `IORING_REGISTER_FILE_ALLOC_RANGE` argument (`struct io_uring_file_index_range`): the
+  /// slots `[off, off + len)`.
+  /// @kernel-only
+  /// @size(16)
+  /// @align(8)
+  record io-uring-file-index-range {
+    off: u32,
+    len: u32,
+    resv: u64,
+  }
+
+  /// The header a multishot `IORING_OP_RECVMSG` writes at the start of each provided buffer
+  /// (`struct io_uring_recvmsg_out`); the name, the control data and the payload follow it.
+  /// @kernel-only
+  /// @size(16)
+  /// @align(4)
+  record io-uring-recvmsg-out {
+    namelen: u32,
+    controllen: u32,
+    payloadlen: u32,
+    %flags: u32,
+  }
+
+  /// `IORING_OP_MSG_RING` commands, in `sqe->addr` (`enum io_uring_msg_ring_flags`).
+  /// @repr(u32)
+  enum io-uring-msg-ring-cmd {
+    /// Post `len` as the result and `off` as the user data on the target ring.
+    /// @value(0)
+    ioring-msg-data,
+    /// Install a registered file in the target ring's table.
+    /// @value(1)
+    ioring-msg-send-fd,
+  }
+
+  /// `IORING_OP_MSG_RING` flags (`sqe->msg_ring_flags`).
+  /// @repr(u32)
+  flags ioring-msg-ring-flags {
+    /// @value(0x1)
+    ioring-msg-ring-cqe-skip,
+    /// The target's CQE takes its flags from `sqe->file_index`.
+    /// @value(0x2)
+    ioring-msg-ring-flags-pass,
+  }
+
+  /// `IORING_OP_FIXED_FD_INSTALL` flags (`sqe->install_fd_flags`).
+  /// @repr(u32)
+  flags ioring-fixed-fd-flags {
+    /// @value(0x1)
+    ioring-fixed-fd-no-cloexec,
+  }
+
+  /// `IORING_OP_URING_CMD` commands on a socket (`enum io_uring_socket_op`).
+  /// @repr(u32)
+  enum io-uring-socket-op {
+    /// @value(0)
+    socket-uring-op-siocinq,
+    /// @value(1)
+    socket-uring-op-siocoutq,
+    /// @value(2)
+    socket-uring-op-getsockopt,
+    /// @value(3)
+    socket-uring-op-setsockopt,
+    /// @value(4)
+    socket-uring-op-tx-timestamp,
+    /// @value(5)
+    socket-uring-op-getsockname,
+  }
+
+  /// More io_uring constants: `IORING_NOTIF_USAGE_ZC_COPIED` (a zero-copy send's
+  /// notification result), `SPLICE_F_FD_IN_FIXED` (`splice_flags`: `splice_fd_in` is a
+  /// registered file) and the `IORING_URING_CMD_*` flags (`sqe->uring_cmd_flags`).
+  /// @repr(u32)
+  enum io-uring-misc2 {
+    /// @value(0x80000000)
+    ioring-notif-usage-zc-copied,
+    /// @value(0x80000000)
+    splice-f-fd-in-fixed,
+    /// @value(0x1)
+    ioring-uring-cmd-fixed,
+    /// @value(0x2)
+    ioring-uring-cmd-multishot,
+  }
+
   /// `rseq` flags (`enum rseq_flags`, `linux/rseq.h`).
   /// @repr(s32)
   /// @c(int)
