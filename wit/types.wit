@@ -6097,6 +6097,126 @@ interface types {
     sse-assoc-id: s32,
   }
 
+  /// `SCTP_SENDER_DRY_EVENT` notification (`struct sctp_sender_dry_event`).
+  /// @kernel-only
+  /// @size(12)
+  /// @align(4)
+  record sctp-sender-dry-event {
+    sender-dry-type: u16,
+    sender-dry-flags: u16,
+    sender-dry-length: u32,
+    sender-dry-assoc-id: s32,
+  }
+
+  /// `SCTP_GET_PEER_ADDR_INFO` and `sctp-status`' primary path (`struct sctp_paddrinfo`, packed
+  /// and 4-aligned, which on wasm32 leaves every field at its natural offset); `spinfo-state` is
+  /// `sctp-spinfo-state`.
+  /// @kernel-only
+  /// @size(152)
+  /// @align(4)
+  record sctp-paddrinfo {
+    spinfo-assoc-id: s32,
+    spinfo-address: sockaddr-storage,
+    spinfo-state: s32,
+    spinfo-cwnd: u32,
+    spinfo-srtt: u32,
+    spinfo-rto: u32,
+    spinfo-mtu: u32,
+  }
+
+  /// `SCTP_STATUS` (`struct sctp_status`); `sstat-state` is `sctp-sstat-state`.
+  /// @kernel-only
+  /// @size(176)
+  /// @align(4)
+  record sctp-status {
+    sstat-assoc-id: s32,
+    sstat-state: s32,
+    sstat-rwnd: u32,
+    sstat-unackdata: u16,
+    sstat-penddata: u16,
+    sstat-instrms: u16,
+    sstat-outstrms: u16,
+    sstat-fragmentation-point: u32,
+    sstat-primary: sctp-paddrinfo,
+  }
+
+  /// `SCTP_PRIMARY_ADDR` (`struct sctp_prim`, packed and 4-aligned).
+  /// @kernel-only
+  /// @size(132)
+  /// @align(4)
+  record sctp-prim {
+    ssp-assoc-id: s32,
+    ssp-addr: sockaddr-storage,
+  }
+
+  /// `SCTP_SOCKOPT_PEELOFF` (`sctp_peeloff_arg_t`): in, the association; out, the new descriptor.
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record sctp-peeloff-arg {
+    associd: s32,
+    sd: s32,
+  }
+
+  /// `SCTP_SOCKOPT_PEELOFF_FLAGS` (`sctp_peeloff_flags_arg_t`); `flags` takes `SOCK_CLOEXEC` and
+  /// `SOCK_NONBLOCK`.
+  /// @kernel-only
+  /// @size(12)
+  /// @align(4)
+  record sctp-peeloff-flags-arg {
+    p-arg: sctp-peeloff-arg,
+    %flags: u32,
+  }
+
+  /// `SCTP_SOCKOPT_CONNECTX3` (`struct sctp_getaddrs_old`): `addr-num` bytes of packed addresses
+  /// at `addrs`; the association id is written back over `assoc-id`.
+  /// @kernel-only
+  /// @size(12)
+  /// @align(4)
+  record sctp-getaddrs-old {
+    assoc-id: s32,
+    addr-num: s32,
+    addrs: const-sockaddr-ptr,
+  }
+
+  /// `sstat_state` of `SCTP_STATUS` (`enum sctp_sstat_state`).
+  /// @repr(s32)
+  enum sctp-sstat-state {
+    /// @value(0)
+    sctp-empty,
+    /// @value(1)
+    sctp-closed,
+    /// @value(2)
+    sctp-cookie-wait,
+    /// @value(3)
+    sctp-cookie-echoed,
+    /// @value(4)
+    sctp-established,
+    /// @value(5)
+    sctp-shutdown-pending,
+    /// @value(6)
+    sctp-shutdown-sent,
+    /// @value(7)
+    sctp-shutdown-received,
+    /// @value(8)
+    sctp-shutdown-ack-sent,
+  }
+
+  /// `spinfo_state` of a peer address (`enum sctp_spinfo_state`).
+  /// @repr(s32)
+  enum sctp-spinfo-state {
+    /// @value(0)
+    sctp-inactive,
+    /// @value(1)
+    sctp-pf,
+    /// @value(2)
+    sctp-active,
+    /// @value(3)
+    sctp-unconfirmed,
+    /// @value(0xffff)
+    sctp-unknown,
+  }
+
   /// `SOL_SCTP` socket options (UAPI `linux/sctp.h`).
   /// @repr(s32)
   enum sctp-option {
@@ -6160,6 +6280,8 @@ interface types {
     sctp-sockopt-bindx-rem,
     /// @value(102)
     sctp-sockopt-peeloff,
+    /// @value(107)
+    sctp-sockopt-connectx-old,
     /// @value(108)
     sctp-get-peer-addrs,
     /// @value(109)
