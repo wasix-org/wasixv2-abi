@@ -6467,6 +6467,21 @@ interface types {
     /// structure as both know.
     /// @value(0xc058ff0b)
     pidfd-get-info,
+    /// `SECCOMP_IOCTL_NOTIF_RECV`: `_IOWR('!', 0, struct seccomp_notif)` (`linux/seccomp.h`).
+    /// @value(0xc0502100)
+    seccomp-ioctl-notif-recv,
+    /// `SECCOMP_IOCTL_NOTIF_SEND`: `_IOWR('!', 1, struct seccomp_notif_resp)`.
+    /// @value(0xc0182101)
+    seccomp-ioctl-notif-send,
+    /// `SECCOMP_IOCTL_NOTIF_ID_VALID`: `_IOW('!', 2, __u64)`.
+    /// @value(0x40082102)
+    seccomp-ioctl-notif-id-valid,
+    /// `SECCOMP_IOCTL_NOTIF_ADDFD`: `_IOW('!', 3, struct seccomp_notif_addfd)`.
+    /// @value(0x40182103)
+    seccomp-ioctl-notif-addfd,
+    /// `SECCOMP_IOCTL_NOTIF_SET_FLAGS`: `_IOW('!', 4, __u64)`.
+    /// @value(0x40082104)
+    seccomp-ioctl-notif-set-flags,
   }
 
   /// `_IOC_TYPE` bytes of ioctl request families.
@@ -7412,6 +7427,554 @@ interface types {
 
   /// @ptr(mut reflection-result)
   type reflection-result-ptr = uptr;
+
+  // ==== Sandboxing: seccomp, Landlock, keys, LSM ====
+
+  /// `seccomp` operations (first argument; `linux/seccomp.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  enum seccomp-op {
+    /// @value(0)
+    seccomp-set-mode-strict,
+    /// @value(1)
+    seccomp-set-mode-filter,
+    /// @value(2)
+    seccomp-get-action-avail,
+    /// @value(3)
+    seccomp-get-notif-sizes,
+  }
+
+  /// A task's seccomp mode, as `PR_GET_SECCOMP` and `/proc/[pid]/status` report it
+  /// (`linux/seccomp.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  enum seccomp-mode {
+    /// @value(0)
+    seccomp-mode-disabled,
+    /// @value(1)
+    seccomp-mode-strict,
+    /// @value(2)
+    seccomp-mode-filter,
+  }
+
+  /// `SECCOMP_SET_MODE_FILTER` flags (`linux/seccomp.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags seccomp-filter-flags {
+    /// @value(0x1)
+    seccomp-filter-flag-tsync,
+    /// @value(0x2)
+    seccomp-filter-flag-log,
+    /// @value(0x4)
+    seccomp-filter-flag-spec-allow,
+    /// @value(0x8)
+    seccomp-filter-flag-new-listener,
+    /// @value(0x10)
+    seccomp-filter-flag-tsync-esrch,
+    /// @value(0x20)
+    seccomp-filter-flag-wait-killable-recv,
+  }
+
+  /// What a seccomp filter returns: an action in the high 16 bits (`SECCOMP_RET_ACTION_FULL`)
+  /// and data in the low 16 (`SECCOMP_RET_DATA`) (`linux/seccomp.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  enum seccomp-ret {
+    /// @value(0x80000000)
+    seccomp-ret-kill-process,
+    /// @value(0x0)
+    seccomp-ret-kill-thread,
+    /// @value(0x0)
+    seccomp-ret-kill,
+    /// @value(0x30000)
+    seccomp-ret-trap,
+    /// @value(0x50000)
+    seccomp-ret-errno,
+    /// @value(0x7fc00000)
+    seccomp-ret-user-notif,
+    /// @value(0x7ff00000)
+    seccomp-ret-trace,
+    /// @value(0x7ffc0000)
+    seccomp-ret-log,
+    /// @value(0x7fff0000)
+    seccomp-ret-allow,
+    /// @value(0xffff0000)
+    seccomp-ret-action-full,
+    /// @value(0x7fff0000)
+    seccomp-ret-action,
+    /// @value(0xffff)
+    seccomp-ret-data,
+  }
+
+  /// `seccomp_notif_resp.flags` and `SECCOMP_IOCTL_NOTIF_SET_FLAGS` flags, and
+  /// `seccomp_notif_addfd.flags` (`linux/seccomp.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags seccomp-notif-flags {
+    /// `SECCOMP_USER_NOTIF_FLAG_CONTINUE` (response) and `SECCOMP_USER_NOTIF_FD_SYNC_WAKE_UP`
+    /// (`SET_FLAGS`).
+    /// @value(0x1)
+    seccomp-user-notif-flag-continue,
+    /// @value(0x1)
+    seccomp-user-notif-fd-sync-wake-up,
+    /// @value(0x1)
+    seccomp-addfd-flag-setfd,
+    /// @value(0x2)
+    seccomp-addfd-flag-send,
+  }
+
+  /// `seccomp_data.arch` and `si_arch` of wasixv2 tasks: riscv32's (`AUDIT_ARCH_RISCV32`,
+  /// `EM_RISCV | __AUDIT_ARCH_LE`, `linux/audit.h`), whose syscall table the ABI follows.
+  /// @repr(u32)
+  /// @c(unsigned)
+  enum audit-arch {
+    /// @value(0x400000f3)
+    audit-arch-riscv32,
+  }
+
+  /// What a seccomp filter runs over (`struct seccomp_data`): `nr` is the riscv32 syscall number
+  /// and `args` its six registers, each zero-extended. wasm has no program counter, so
+  /// `instruction-pointer` is 0.
+  /// @kernel-only
+  /// @size(64)
+  /// @align(8)
+  record seccomp-data {
+    nr: s32,
+    arch: u32,
+    instruction-pointer: u64,
+    args: list<u64, 6>,
+  }
+
+  /// `SECCOMP_GET_NOTIF_SIZES` result (`struct seccomp_notif_sizes`).
+  /// @kernel-only
+  /// @size(6)
+  /// @align(2)
+  record seccomp-notif-sizes {
+    seccomp-notif: u16,
+    seccomp-notif-resp: u16,
+    seccomp-data: u16,
+  }
+
+  /// A user notification (`struct seccomp_notif`), read with `SECCOMP_IOCTL_NOTIF_RECV`.
+  /// @kernel-only
+  /// @size(80)
+  /// @align(8)
+  record seccomp-notif {
+    id: u64,
+    pid: u32,
+    %flags: u32,
+    data: seccomp-data,
+  }
+
+  /// The answer to a user notification (`struct seccomp_notif_resp`).
+  /// @kernel-only
+  /// @size(24)
+  /// @align(8)
+  record seccomp-notif-resp {
+    id: u64,
+    val: s64,
+    error: s32,
+    %flags: u32,
+  }
+
+  /// `SECCOMP_IOCTL_NOTIF_ADDFD` argument (`struct seccomp_notif_addfd`).
+  /// @kernel-only
+  /// @size(24)
+  /// @align(8)
+  record seccomp-notif-addfd {
+    id: u64,
+    %flags: u32,
+    srcfd: u32,
+    newfd: u32,
+    newfd-flags: u32,
+  }
+
+  /// `landlock_create_ruleset` flags (`linux/landlock.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags landlock-create-ruleset-flags {
+    /// @value(0x1)
+    landlock-create-ruleset-version,
+    /// @value(0x2)
+    landlock-create-ruleset-errata,
+  }
+
+  /// `landlock_add_rule` flags (`linux/landlock.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags landlock-add-rule-flags {
+    /// @value(0x1)
+    landlock-add-rule-quiet,
+  }
+
+  /// `landlock_restrict_self` flags (`linux/landlock.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags landlock-restrict-self-flags {
+    /// @value(0x1)
+    landlock-restrict-self-log-same-exec-off,
+    /// @value(0x2)
+    landlock-restrict-self-log-new-exec-on,
+    /// @value(0x4)
+    landlock-restrict-self-log-subdomains-off,
+    /// @value(0x8)
+    landlock-restrict-self-tsync,
+  }
+
+  /// `landlock_add_rule` rule types (`enum landlock_rule_type`).
+  /// @repr(s32)
+  /// @c(int)
+  enum landlock-rule-type {
+    /// @value(1)
+    landlock-rule-path-beneath,
+    /// @value(2)
+    landlock-rule-net-port,
+  }
+
+  /// Filesystem access rights (`LANDLOCK_ACCESS_FS_*`, `linux/landlock.h`).
+  /// @repr(u64)
+  flags landlock-access-fs {
+    /// @value(0x1)
+    landlock-access-fs-execute,
+    /// @value(0x2)
+    landlock-access-fs-write-file,
+    /// @value(0x4)
+    landlock-access-fs-read-file,
+    /// @value(0x8)
+    landlock-access-fs-read-dir,
+    /// @value(0x10)
+    landlock-access-fs-remove-dir,
+    /// @value(0x20)
+    landlock-access-fs-remove-file,
+    /// @value(0x40)
+    landlock-access-fs-make-char,
+    /// @value(0x80)
+    landlock-access-fs-make-dir,
+    /// @value(0x100)
+    landlock-access-fs-make-reg,
+    /// @value(0x200)
+    landlock-access-fs-make-sock,
+    /// @value(0x400)
+    landlock-access-fs-make-fifo,
+    /// @value(0x800)
+    landlock-access-fs-make-block,
+    /// @value(0x1000)
+    landlock-access-fs-make-sym,
+    /// @value(0x2000)
+    landlock-access-fs-refer,
+    /// @value(0x4000)
+    landlock-access-fs-truncate,
+    /// @value(0x8000)
+    landlock-access-fs-ioctl-dev,
+    /// @value(0x10000)
+    landlock-access-fs-resolve-unix,
+  }
+
+  /// Network access rights (`LANDLOCK_ACCESS_NET_*`, `linux/landlock.h`).
+  /// @repr(u64)
+  flags landlock-access-net {
+    /// @value(0x1)
+    landlock-access-net-bind-tcp,
+    /// @value(0x2)
+    landlock-access-net-connect-tcp,
+    /// @value(0x4)
+    landlock-access-net-bind-udp,
+    /// @value(0x8)
+    landlock-access-net-connect-send-udp,
+  }
+
+  /// IPC scopes (`LANDLOCK_SCOPE_*`, `linux/landlock.h`).
+  /// @repr(u64)
+  flags landlock-scope {
+    /// @value(0x1)
+    landlock-scope-abstract-unix-socket,
+    /// @value(0x2)
+    landlock-scope-signal,
+  }
+
+  /// `LANDLOCK_RULE_PATH_BENEATH` rule (`struct landlock_path_beneath_attr`), packed: 12 bytes
+  /// at any alignment.
+  /// @kernel-only
+  /// @size(12)
+  /// @align(1)
+  record landlock-path-beneath-attr {
+    allowed-access: list<u8, 8>,
+    parent-fd: list<u8, 4>,
+  }
+
+  /// Special key and keyring ids (`KEY_SPEC_*`, `linux/keyctl.h`).
+  /// @repr(s32)
+  /// @c(int)
+  enum key-spec {
+    /// @value(-1)
+    key-spec-thread-keyring,
+    /// @value(-2)
+    key-spec-process-keyring,
+    /// @value(-3)
+    key-spec-session-keyring,
+    /// @value(-4)
+    key-spec-user-keyring,
+    /// @value(-5)
+    key-spec-user-session-keyring,
+    /// @value(-6)
+    key-spec-group-keyring,
+    /// @value(-7)
+    key-spec-reqkey-auth-key,
+    /// @value(-8)
+    key-spec-requestor-keyring,
+  }
+
+  /// `KEYCTL_SET_REQKEY_KEYRING` defaults (`KEY_REQKEY_DEFL_*`, `linux/keyctl.h`).
+  /// @repr(s32)
+  /// @c(int)
+  enum key-reqkey-defl {
+    /// @value(-1)
+    key-reqkey-defl-no-change,
+    /// @value(0)
+    key-reqkey-defl-default,
+    /// @value(1)
+    key-reqkey-defl-thread-keyring,
+    /// @value(2)
+    key-reqkey-defl-process-keyring,
+    /// @value(3)
+    key-reqkey-defl-session-keyring,
+    /// @value(4)
+    key-reqkey-defl-user-keyring,
+    /// @value(5)
+    key-reqkey-defl-user-session-keyring,
+    /// @value(6)
+    key-reqkey-defl-group-keyring,
+    /// @value(7)
+    key-reqkey-defl-requestor-keyring,
+  }
+
+  /// `keyctl` operations (first argument; `linux/keyctl.h`).
+  /// @repr(s32)
+  /// @c(int)
+  enum keyctl-op {
+    /// @value(0)
+    keyctl-get-keyring-id,
+    /// @value(1)
+    keyctl-join-session-keyring,
+    /// @value(2)
+    keyctl-update,
+    /// @value(3)
+    keyctl-revoke,
+    /// @value(4)
+    keyctl-chown,
+    /// @value(5)
+    keyctl-setperm,
+    /// @value(6)
+    keyctl-describe,
+    /// @value(7)
+    keyctl-clear,
+    /// @value(8)
+    keyctl-link,
+    /// @value(9)
+    keyctl-unlink,
+    /// @value(10)
+    keyctl-search,
+    /// @value(11)
+    keyctl-read,
+    /// @value(12)
+    keyctl-instantiate,
+    /// @value(13)
+    keyctl-negate,
+    /// @value(14)
+    keyctl-set-reqkey-keyring,
+    /// @value(15)
+    keyctl-set-timeout,
+    /// @value(16)
+    keyctl-assume-authority,
+    /// @value(17)
+    keyctl-get-security,
+    /// @value(18)
+    keyctl-session-to-parent,
+    /// @value(19)
+    keyctl-reject,
+    /// @value(20)
+    keyctl-instantiate-iov,
+    /// @value(21)
+    keyctl-invalidate,
+    /// @value(22)
+    keyctl-get-persistent,
+    /// @value(23)
+    keyctl-dh-compute,
+    /// @value(24)
+    keyctl-pkey-query,
+    /// @value(25)
+    keyctl-pkey-encrypt,
+    /// @value(26)
+    keyctl-pkey-decrypt,
+    /// @value(27)
+    keyctl-pkey-sign,
+    /// @value(28)
+    keyctl-pkey-verify,
+    /// @value(29)
+    keyctl-restrict-keyring,
+    /// @value(30)
+    keyctl-move,
+    /// @value(31)
+    keyctl-capabilities,
+    /// @value(32)
+    keyctl-watch-key,
+  }
+
+  /// `KEYCTL_MOVE` flags and `KEYCTL_CAPABILITIES` bits (`linux/keyctl.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags keyctl-flags {
+    /// @value(0x1)
+    keyctl-move-excl,
+    /// @value(0x1)
+    keyctl-caps0-capabilities,
+    /// @value(0x2)
+    keyctl-caps0-persistent-keyrings,
+    /// @value(0x4)
+    keyctl-caps0-diffie-hellman,
+    /// @value(0x8)
+    keyctl-caps0-public-key,
+    /// @value(0x10)
+    keyctl-caps0-big-key,
+    /// @value(0x20)
+    keyctl-caps0-invalidate,
+    /// @value(0x40)
+    keyctl-caps0-restrict-keyring,
+    /// @value(0x80)
+    keyctl-caps0-move,
+    /// @value(0x1)
+    keyctl-caps1-ns-keyring-name,
+    /// @value(0x2)
+    keyctl-caps1-ns-key-tag,
+    /// @value(0x4)
+    keyctl-caps1-notifications,
+  }
+
+  /// Key permissions (`key_perm_t`, `linux/key.h`; keyutils' `KEY_POS_*` and friends): one byte
+  /// each for the possessor, the owner, the group and others.
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags key-perm {
+    /// @value(0x01000000)
+    key-pos-view,
+    /// @value(0x02000000)
+    key-pos-read,
+    /// @value(0x04000000)
+    key-pos-write,
+    /// @value(0x08000000)
+    key-pos-search,
+    /// @value(0x10000000)
+    key-pos-link,
+    /// @value(0x20000000)
+    key-pos-setattr,
+    /// @value(0x3f000000)
+    key-pos-all,
+    /// @value(0x00010000)
+    key-usr-view,
+    /// @value(0x00020000)
+    key-usr-read,
+    /// @value(0x00040000)
+    key-usr-write,
+    /// @value(0x00080000)
+    key-usr-search,
+    /// @value(0x00100000)
+    key-usr-link,
+    /// @value(0x00200000)
+    key-usr-setattr,
+    /// @value(0x003f0000)
+    key-usr-all,
+    /// @value(0x00000100)
+    key-grp-view,
+    /// @value(0x00000200)
+    key-grp-read,
+    /// @value(0x00000400)
+    key-grp-write,
+    /// @value(0x00000800)
+    key-grp-search,
+    /// @value(0x00001000)
+    key-grp-link,
+    /// @value(0x00002000)
+    key-grp-setattr,
+    /// @value(0x00003f00)
+    key-grp-all,
+    /// @value(0x00000001)
+    key-oth-view,
+    /// @value(0x00000002)
+    key-oth-read,
+    /// @value(0x00000004)
+    key-oth-write,
+    /// @value(0x00000008)
+    key-oth-search,
+    /// @value(0x00000010)
+    key-oth-link,
+    /// @value(0x00000020)
+    key-oth-setattr,
+    /// @value(0x0000003f)
+    key-oth-all,
+  }
+
+  /// LSM ids (`LSM_ID_*`, `linux/lsm.h`).
+  /// @repr(u64)
+  enum lsm-id {
+    /// @value(0)
+    lsm-id-undef,
+    /// @value(100)
+    lsm-id-capability,
+    /// @value(101)
+    lsm-id-selinux,
+    /// @value(102)
+    lsm-id-smack,
+    /// @value(103)
+    lsm-id-tomoyo,
+    /// @value(104)
+    lsm-id-apparmor,
+    /// @value(105)
+    lsm-id-yama,
+    /// @value(106)
+    lsm-id-loadpin,
+    /// @value(107)
+    lsm-id-safesetid,
+    /// @value(108)
+    lsm-id-lockdown,
+    /// @value(109)
+    lsm-id-bpf,
+    /// @value(110)
+    lsm-id-landlock,
+    /// @value(111)
+    lsm-id-ima,
+    /// @value(112)
+    lsm-id-evm,
+    /// @value(113)
+    lsm-id-ipe,
+  }
+
+  /// LSM attributes (`LSM_ATTR_*`, `linux/lsm.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  enum lsm-attr {
+    /// @value(0)
+    lsm-attr-undef,
+    /// @value(100)
+    lsm-attr-current,
+    /// @value(101)
+    lsm-attr-exec,
+    /// @value(102)
+    lsm-attr-fscreate,
+    /// @value(103)
+    lsm-attr-keycreate,
+    /// @value(104)
+    lsm-attr-prev,
+    /// @value(105)
+    lsm-attr-sockcreate,
+  }
+
+  /// `lsm_get_self_attr` flags (`linux/lsm.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags lsm-flags {
+    /// @value(0x1)
+    lsm-flag-single,
+  }
 
   // ==== Checkpointing (wasixv2 extensions) ====
 
