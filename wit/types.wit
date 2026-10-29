@@ -8089,6 +8089,12 @@ interface types {
   /// @repr(u32)
   /// @c(unsigned)
   enum ioctl-request {
+    /// `/dev/fuse` cloning (`fs/fuse/dev.c:fuse_dev_ioctl`).
+    /// @value(0x8004e500)
+    fuse-dev-ioc-clone,
+    /// Require synchronous INIT before mount completes (`fs/fuse/dev.c:fuse_dev_ioctl_sync_init`).
+    /// @value(0x0000e503)
+    fuse-dev-ioc-sync-init,
     /// @value(21505)
     tcgets,
     /// @value(21506)
