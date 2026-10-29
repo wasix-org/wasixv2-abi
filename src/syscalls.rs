@@ -8,7 +8,9 @@ use anyhow::{Result, bail};
 
 use crate::ir::{Model, Prim, SplitOrder, TyRef};
 use crate::rust::{cast, header, push_docs, ty};
-use crate::shape::{Method, Param, Repr, methods, repr, signature_types, slice_type, uses_slice};
+use crate::shape::{
+    Method, Param, RawParam, Repr, decode, methods, repr, signature_types, slice_type, uses_slice,
+};
 
 /// Items of `wasixv2-syscalls` the generated module names, which ABI types must not shadow.
 const LOCAL_ITEMS: &[&str] = &[
@@ -181,6 +183,25 @@ impl Gen {
         self.line("}");
         self.line("}");
         self.line("");
+        self.line("/// The call riscv32 makes with number `nr` and registers `a`: the inverse of");
+        self.line("/// [`Syscall::nr`] and [`Syscall::args`], for a tracer that changes a call at its entry");
+        self.line("/// (`PTRACE_SET_SYSCALL_INFO`). `None` for a number no import has.");
+        self.line("pub fn from_regs(nr: u32, a: [u64; 6]) -> Option<Syscall> {");
+        self.line("Some(match nr {");
+        let mut seen = std::collections::BTreeSet::new();
+        for m in methods {
+            let Some(nr) = m.f.nr else { continue };
+            let Some(call) = from_registers(model, m) else {
+                continue;
+            };
+            if seen.insert(nr) {
+                let _ = writeln!(self.out, "{nr} => {call},");
+            }
+        }
+        self.line("_ => return None,");
+        self.line("})");
+        self.line("}");
+        self.line("");
         self.line("/// What this call returns when its raw result (the value or `-errno` the guest sees) is");
         self.line("/// `raw`, for a layer that answers a call without running it.");
         self.line("pub fn ret_from_raw(&self, raw: i64) -> SyscallRet {");
@@ -324,6 +345,74 @@ fn registers(model: &Model, m: &Method) -> Vec<String> {
         }
     }
     out
+}
+
+/// `m`'s call built from the registers `a` (see [`registers`]), or `None` when its raw params
+/// take more than six.
+fn from_registers(model: &Model, m: &Method) -> Option<String> {
+    // The raw value of each raw param in its wasm type, and the register a 32-bit one is in.
+    let mut raw = Vec::new();
+    let mut reg = Vec::new();
+    let mut next = 0;
+    for (i, r) in m.raw.iter().enumerate() {
+        let wit = &m.f.params[i].name;
+        let merged = m.f.merged_i64.iter().any(|x| &x.param == wit);
+        let value = match merged {
+            true => {
+                let (lo, hi) = match m.f.split_order(wit) {
+                    SplitOrder::LoHi => (next, next + 1),
+                    SplitOrder::HiLo => (next + 1, next),
+                };
+                next += 2;
+                reg.push(None);
+                let v = format!("((a[{lo}] & 0xffff_ffff) | (a[{hi}] << 32))");
+                cast(&v, Prim::U64, r.prim)
+            }
+            false => {
+                let a = format!("a[{next}]");
+                next += 1;
+                reg.push(Some(a.clone()));
+                cast(&a, Prim::U64, r.prim)
+            }
+        };
+        raw.push(value);
+    }
+    if next > 6 {
+        return None;
+    }
+    let fields: Vec<String> = m
+        .params
+        .iter()
+        .map(|p| match p {
+            Param::Value { name, raw: i, .. } => {
+                let r = &m.raw[*i];
+                let shaped = RawParam {
+                    name: raw[*i].clone(),
+                    ty: r.ty.clone(),
+                    prim: r.prim,
+                };
+                format!("{name}: {}", decode(model, &shaped))
+            }
+            Param::Slice {
+                name,
+                mutable,
+                ptr,
+                len,
+            } => {
+                let at = |i: usize| reg[i].clone().expect("a slice's halves are 32-bit");
+                format!(
+                    "{name}: {}::new({} as u32, {} as u32)",
+                    slice_type(*mutable),
+                    at(*ptr),
+                    at(*len)
+                )
+            }
+        })
+        .collect();
+    Some(match fields.is_empty() {
+        true => format!("Syscall::{}", m.variant),
+        false => format!("Syscall::{} {{ {} }}", m.variant, fields.join(", ")),
+    })
 }
 
 /// The typed success value `t` of a raw result `raw` (an `i64`).
@@ -511,6 +600,11 @@ pub(crate) mod tests {
             "Syscall::Read { .. } => SyscallRet::Read(raw as u32),",
             "Syscall::Openat { .. } => SyscallRet::Openat(Fd(raw as i32)),",
             "Syscall::ExitGroup { .. } => SyscallRet::ExitGroup,",
+            "pub fn from_regs(nr: u32, a: [u64; 6]) -> Option<Syscall> {",
+            "63 => Syscall::Read { fd: Fd(a[0] as i32), buf: UserSliceMut::new(a[1] as u32, a[2] as u32) },",
+            "67 => Syscall::Pread { fd: Fd(a[0] as i32), buf: a[1] as i32 as u32, pos: ((a[2] & 0xffff_ffff) | (a[3] << 32)) as i64 },",
+            "62 => Syscall::Llseek { pos: ((a[1] & 0xffff_ffff) | (a[0] << 32)) as i64 },",
+            "_ => return None,",
             "pub trait Layer<S: Syscalls> {",
             "impl<L: Layer<S>, S: Syscalls> Syscalls for Layered<L, S> {",
         ] {
