@@ -9765,6 +9765,8 @@ interface types {
     landlock-restrict-self-log-subdomains-off,
     /// @value(0x8)
     landlock-restrict-self-tsync,
+    /// @value(0x10)
+    landlock-restrict-self-no-new-privs,
   }
 
   /// `landlock_add_rule` rule types (`enum landlock_rule_type`).
