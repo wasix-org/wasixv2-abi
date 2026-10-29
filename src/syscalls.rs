@@ -37,7 +37,7 @@ pub fn generate(model: &Model, source: &str) -> Result<String> {
     g.out.push_str(&header(source));
     g.imports(&methods, &types);
     g.trait_def(&methods);
-    g.enums(&methods);
+    g.enums(model, &methods);
     g.registers(model, &methods);
     g.dispatch(&methods);
     g.out.push_str(LAYER);
@@ -98,7 +98,7 @@ impl Gen {
         self.line("}");
     }
 
-    fn enums(&mut self, methods: &[Method]) {
+    fn enums(&mut self, model: &Model, methods: &[Method]) {
         self.line("");
         self.line("/// One syscall with its arguments, for layers that treat every call alike.");
         self.line("#[derive(Clone, Copy, Debug, PartialEq, Eq)]");
@@ -126,6 +126,27 @@ impl Gen {
                 }
             }
         }
+        self.line("}");
+        self.line("");
+        self.line("impl SyscallRet {");
+        self.line(
+            "/// The raw result the guest sees, as riscv32's `a0` holds it and a tracer reads it",
+        );
+        self.line("/// (`syscall_get_return_value`): a 32-bit `long`, sign-extended; 64-bit values whole.");
+        self.line(
+            "/// The inverse of [`Syscall::ret_from_raw`]; a call without a value returns 0.",
+        );
+        self.line("pub fn to_raw(&self) -> i64 {");
+        self.line("match *self {");
+        for m in methods {
+            let value = match &m.ret {
+                Some(t) => format!("SyscallRet::{}(v) => {}", m.variant, encode_raw(model, t)),
+                None => format!("SyscallRet::{} => 0", m.variant),
+            };
+            let _ = writeln!(self.out, "{value},");
+        }
+        self.line("}");
+        self.line("}");
         self.line("}");
     }
 
@@ -311,6 +332,20 @@ fn decode_raw(model: &Model, t: &TyRef) -> String {
         Repr::Int(p) => cast("raw", Prim::S64, p),
         Repr::Ptr => format!("{}::new(raw as u32)", ty(t)),
         Repr::Wrapped { ctor, prim } => format!("{ctor}({})", cast("raw", Prim::S64, prim)),
+    }
+}
+
+/// `v`, the value of a result of type `t`, as the raw `i64` a register holds (see
+/// [`decode_raw`]): 32-bit values sign-extended as a `long`, 64-bit ones whole.
+fn encode_raw(model: &Model, t: &TyRef) -> String {
+    let widen = |expr: &str, p: Prim| match p.size() {
+        8 => cast(expr, p, Prim::S64),
+        _ => format!("{} as i64", cast(expr, p, Prim::S32)),
+    };
+    match repr(model, t) {
+        Repr::Int(p) => widen("v", p),
+        Repr::Ptr => "v.addr() as i32 as i64".to_string(),
+        Repr::Wrapped { prim, .. } => widen("v.0", prim),
     }
 }
 
