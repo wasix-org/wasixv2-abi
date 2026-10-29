@@ -6091,6 +6091,725 @@ interface types {
     ts: u64,
   }
 
+  // ==== Linux AIO rings, io_uring submissions and completions, rseq ====
+
+  /// `iocb.aio_lio_opcode` (`IOCB_CMD_*`, `linux/aio_abi.h`).
+  /// @repr(u16)
+  enum iocb-cmd {
+    /// @value(0)
+    iocb-cmd-pread,
+    /// @value(1)
+    iocb-cmd-pwrite,
+    /// @value(2)
+    iocb-cmd-fsync,
+    /// @value(3)
+    iocb-cmd-fdsync,
+    /// @value(5)
+    iocb-cmd-poll,
+    /// @value(6)
+    iocb-cmd-noop,
+    /// @value(7)
+    iocb-cmd-preadv,
+    /// @value(8)
+    iocb-cmd-pwritev,
+  }
+
+  /// `iocb.aio_flags` (`IOCB_FLAG_*`, `linux/aio_abi.h`).
+  /// @repr(u32)
+  flags iocb-flags {
+    /// `aio_resfd` names an eventfd that every completion signals.
+    /// @value(0x1)
+    iocb-flag-resfd,
+    /// `aio_reqprio` is an I/O priority.
+    /// @value(0x2)
+    iocb-flag-ioprio,
+  }
+
+  /// The header of a Linux AIO context's completion ring, which `io_setup` maps into the
+  /// caller's memory at the context's address (`struct aio_ring`, `fs/aio.c`; kernel-internal,
+  /// but libaio reads it). The `io-event`s follow it.
+  /// @kernel-only
+  /// @size(32)
+  /// @align(4)
+  record aio-ring {
+    /// The context's index in the process's table (`kioctx::id`).
+    id: u32,
+    /// How many events the ring holds.
+    nr: u32,
+    /// The next event to read; userspace may move it.
+    head: u32,
+    /// Where the next completion goes.
+    tail: u32,
+    magic: u32,
+    compat-features: u32,
+    incompat-features: u32,
+    /// The size of this header.
+    header-length: u32,
+  }
+
+  /// Constants of the AIO ring (`fs/aio.c`).
+  /// @repr(u32)
+  enum aio-ring-misc {
+    /// @value(0x0)
+    aio-ring-incompat-features,
+    /// @value(0x1)
+    aio-ring-compat-features,
+    /// @value(0xa10a10a1)
+    aio-ring-magic,
+  }
+
+  /// One submission queue entry (`struct io_uring_sqe`). Most fields are unions named by the
+  /// operation; their common names are used here.
+  /// @kernel-only
+  /// @size(64)
+  /// @align(8)
+  record io-uring-sqe {
+    opcode: u8,
+    %flags: u8,
+    ioprio: u16,
+    fd: s32,
+    /// `off`, `addr2` or `cmd_op`.
+    off: u64,
+    /// `addr`, `splice_off_in` or `level`/`optname`.
+    addr: u64,
+    len: u32,
+    /// `rw_flags`, `fsync_flags`, `poll32_events`, `msg_flags`, `timeout_flags`,
+    /// `accept_flags`, `cancel_flags`, `open_flags`, `statx_flags` and the other per-operation
+    /// flags.
+    op-flags: u32,
+    user-data: u64,
+    /// `buf_index` or `buf_group`.
+    buf-index: u16,
+    personality: u16,
+    /// `splice_fd_in`, `file_index`, `optlen` or `addr_len`.
+    splice-fd-in: s32,
+    addr3: u64,
+    /// @c-name(__pad2)
+    pad2: u64,
+  }
+
+  /// One completion queue entry (`struct io_uring_cqe`).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(8)
+  record io-uring-cqe {
+    user-data: u64,
+    res: s32,
+    %flags: u32,
+  }
+
+  /// `io_uring_sqe.opcode` (`enum io_uring_op`).
+  /// @repr(u8)
+  enum io-uring-op {
+    /// @value(0)
+    ioring-op-nop,
+    /// @value(1)
+    ioring-op-readv,
+    /// @value(2)
+    ioring-op-writev,
+    /// @value(3)
+    ioring-op-fsync,
+    /// @value(4)
+    ioring-op-read-fixed,
+    /// @value(5)
+    ioring-op-write-fixed,
+    /// @value(6)
+    ioring-op-poll-add,
+    /// @value(7)
+    ioring-op-poll-remove,
+    /// @value(8)
+    ioring-op-sync-file-range,
+    /// @value(9)
+    ioring-op-sendmsg,
+    /// @value(10)
+    ioring-op-recvmsg,
+    /// @value(11)
+    ioring-op-timeout,
+    /// @value(12)
+    ioring-op-timeout-remove,
+    /// @value(13)
+    ioring-op-accept,
+    /// @value(14)
+    ioring-op-async-cancel,
+    /// @value(15)
+    ioring-op-link-timeout,
+    /// @value(16)
+    ioring-op-connect,
+    /// @value(17)
+    ioring-op-fallocate,
+    /// @value(18)
+    ioring-op-openat,
+    /// @value(19)
+    ioring-op-close,
+    /// @value(20)
+    ioring-op-files-update,
+    /// @value(21)
+    ioring-op-statx,
+    /// @value(22)
+    ioring-op-read,
+    /// @value(23)
+    ioring-op-write,
+    /// @value(24)
+    ioring-op-fadvise,
+    /// @value(25)
+    ioring-op-madvise,
+    /// @value(26)
+    ioring-op-send,
+    /// @value(27)
+    ioring-op-recv,
+    /// @value(28)
+    ioring-op-openat2,
+    /// @value(29)
+    ioring-op-epoll-ctl,
+    /// @value(30)
+    ioring-op-splice,
+    /// @value(31)
+    ioring-op-provide-buffers,
+    /// @value(32)
+    ioring-op-remove-buffers,
+    /// @value(33)
+    ioring-op-tee,
+    /// @value(34)
+    ioring-op-shutdown,
+    /// @value(35)
+    ioring-op-renameat,
+    /// @value(36)
+    ioring-op-unlinkat,
+    /// @value(37)
+    ioring-op-mkdirat,
+    /// @value(38)
+    ioring-op-symlinkat,
+    /// @value(39)
+    ioring-op-linkat,
+    /// @value(40)
+    ioring-op-msg-ring,
+    /// @value(41)
+    ioring-op-fsetxattr,
+    /// @value(42)
+    ioring-op-setxattr,
+    /// @value(43)
+    ioring-op-fgetxattr,
+    /// @value(44)
+    ioring-op-getxattr,
+    /// @value(45)
+    ioring-op-socket,
+    /// @value(46)
+    ioring-op-uring-cmd,
+    /// @value(47)
+    ioring-op-send-zc,
+    /// @value(48)
+    ioring-op-sendmsg-zc,
+    /// @value(49)
+    ioring-op-read-multishot,
+    /// @value(50)
+    ioring-op-waitid,
+    /// @value(51)
+    ioring-op-futex-wait,
+    /// @value(52)
+    ioring-op-futex-wake,
+    /// @value(53)
+    ioring-op-futex-waitv,
+    /// @value(54)
+    ioring-op-fixed-fd-install,
+    /// @value(55)
+    ioring-op-ftruncate,
+    /// @value(56)
+    ioring-op-bind,
+    /// @value(57)
+    ioring-op-listen,
+    /// @value(58)
+    ioring-op-recv-zc,
+    /// @value(59)
+    ioring-op-epoll-wait,
+    /// @value(60)
+    ioring-op-readv-fixed,
+    /// @value(61)
+    ioring-op-writev-fixed,
+    /// @value(62)
+    ioring-op-pipe,
+    /// @value(63)
+    ioring-op-nop128,
+    /// @value(64)
+    ioring-op-uring-cmd128,
+    /// @value(65)
+    ioring-op-last,
+  }
+
+  /// `io_uring_sqe.flags` (`IOSQE_*`).
+  /// @repr(u8)
+  flags iosqe-flags {
+    /// @value(0x1)
+    iosqe-fixed-file,
+    /// @value(0x2)
+    iosqe-io-drain,
+    /// @value(0x4)
+    iosqe-io-link,
+    /// @value(0x8)
+    iosqe-io-hardlink,
+    /// @value(0x10)
+    iosqe-async,
+    /// @value(0x20)
+    iosqe-buffer-select,
+    /// @value(0x40)
+    iosqe-cqe-skip-success,
+  }
+
+  /// `io_uring_params.flags` (`IORING_SETUP_*`).
+  /// @repr(u32)
+  flags ioring-setup-flags {
+    /// @value(0x1)
+    ioring-setup-iopoll,
+    /// @value(0x2)
+    ioring-setup-sqpoll,
+    /// @value(0x4)
+    ioring-setup-sq-aff,
+    /// @value(0x8)
+    ioring-setup-cqsize,
+    /// @value(0x10)
+    ioring-setup-clamp,
+    /// @value(0x20)
+    ioring-setup-attach-wq,
+    /// @value(0x40)
+    ioring-setup-r-disabled,
+    /// @value(0x80)
+    ioring-setup-submit-all,
+    /// @value(0x100)
+    ioring-setup-coop-taskrun,
+    /// @value(0x200)
+    ioring-setup-taskrun-flag,
+    /// @value(0x400)
+    ioring-setup-sqe128,
+    /// @value(0x800)
+    ioring-setup-cqe32,
+    /// @value(0x1000)
+    ioring-setup-single-issuer,
+    /// @value(0x2000)
+    ioring-setup-defer-taskrun,
+    /// @value(0x4000)
+    ioring-setup-no-mmap,
+    /// @value(0x8000)
+    ioring-setup-registered-fd-only,
+    /// @value(0x10000)
+    ioring-setup-no-sqarray,
+    /// @value(0x20000)
+    ioring-setup-hybrid-iopoll,
+    /// @value(0x40000)
+    ioring-setup-cqe-mixed,
+    /// @value(0x80000)
+    ioring-setup-sqe-mixed,
+    /// @value(0x100000)
+    ioring-setup-sq-rewind,
+  }
+
+  /// `io_uring_params.features` (`IORING_FEAT_*`).
+  /// @repr(u32)
+  flags ioring-feat-flags {
+    /// @value(0x1)
+    ioring-feat-single-mmap,
+    /// @value(0x2)
+    ioring-feat-nodrop,
+    /// @value(0x4)
+    ioring-feat-submit-stable,
+    /// @value(0x8)
+    ioring-feat-rw-cur-pos,
+    /// @value(0x10)
+    ioring-feat-cur-personality,
+    /// @value(0x20)
+    ioring-feat-fast-poll,
+    /// @value(0x40)
+    ioring-feat-poll-32bits,
+    /// @value(0x80)
+    ioring-feat-sqpoll-nonfixed,
+    /// @value(0x100)
+    ioring-feat-ext-arg,
+    /// @value(0x200)
+    ioring-feat-native-workers,
+    /// @value(0x400)
+    ioring-feat-rsrc-tags,
+    /// @value(0x800)
+    ioring-feat-cqe-skip,
+    /// @value(0x1000)
+    ioring-feat-linked-file,
+    /// @value(0x2000)
+    ioring-feat-reg-reg-ring,
+    /// @value(0x4000)
+    ioring-feat-recvsend-bundle,
+    /// @value(0x8000)
+    ioring-feat-min-timeout,
+    /// @value(0x10000)
+    ioring-feat-rw-attr,
+    /// @value(0x20000)
+    ioring-feat-no-iowait,
+  }
+
+  /// `io_uring_enter` flags (`IORING_ENTER_*`).
+  /// @repr(u32)
+  flags ioring-enter-flags {
+    /// @value(0x1)
+    ioring-enter-getevents,
+    /// @value(0x2)
+    ioring-enter-sq-wakeup,
+    /// @value(0x4)
+    ioring-enter-sq-wait,
+    /// @value(0x8)
+    ioring-enter-ext-arg,
+    /// @value(0x10)
+    ioring-enter-registered-ring,
+    /// @value(0x20)
+    ioring-enter-abs-timer,
+    /// @value(0x40)
+    ioring-enter-ext-arg-reg,
+    /// @value(0x80)
+    ioring-enter-no-iowait,
+  }
+
+  /// The submission ring's flags word (`IORING_SQ_*`).
+  /// @repr(u32)
+  flags ioring-sq-flags {
+    /// @value(0x1)
+    ioring-sq-need-wakeup,
+    /// @value(0x2)
+    ioring-sq-cq-overflow,
+    /// @value(0x4)
+    ioring-sq-taskrun,
+  }
+
+  /// The completion ring's flags word (`IORING_CQ_*`).
+  /// @repr(u32)
+  flags ioring-cq-flags {
+    /// @value(0x1)
+    ioring-cq-eventfd-disabled,
+  }
+
+  /// `io_uring_cqe.flags` (`IORING_CQE_F_*`). The selected buffer's id is in the bits above
+  /// `IORING_CQE_BUFFER_SHIFT`.
+  /// @repr(u32)
+  flags ioring-cqe-flags {
+    /// @value(0x1)
+    ioring-cqe-f-buffer,
+    /// @value(0x2)
+    ioring-cqe-f-more,
+    /// @value(0x4)
+    ioring-cqe-f-sock-nonempty,
+    /// @value(0x8)
+    ioring-cqe-f-notif,
+    /// @value(0x10)
+    ioring-cqe-f-buf-more,
+    /// @value(0x20)
+    ioring-cqe-f-skip,
+    /// @value(0x8000)
+    ioring-cqe-f-32,
+  }
+
+  /// Per-operation flags of `io_uring_sqe` (`IORING_FSYNC_*`, `IORING_TIMEOUT_*`,
+  /// `IORING_POLL_*`, `IORING_ASYNC_CANCEL_*`, `IORING_RECVSEND_*`, `IORING_ACCEPT_*`,
+  /// `IORING_NOP_*`). Families share bits; each operation reads its own.
+  /// @repr(u32)
+  flags ioring-op-flags {
+    /// @value(0x1)
+    ioring-fsync-datasync,
+    /// @value(0x1)
+    ioring-timeout-abs,
+    /// @value(0x2)
+    ioring-timeout-update,
+    /// @value(0x4)
+    ioring-timeout-boottime,
+    /// @value(0x8)
+    ioring-timeout-realtime,
+    /// @value(0x10)
+    ioring-link-timeout-update,
+    /// @value(0x20)
+    ioring-timeout-etime-success,
+    /// @value(0x40)
+    ioring-timeout-multishot,
+    /// @value(0x80)
+    ioring-timeout-immediate-arg,
+    /// @value(0xc)
+    ioring-timeout-clock-mask,
+    /// @value(0x12)
+    ioring-timeout-update-mask,
+    /// @value(0x1)
+    ioring-poll-add-multi,
+    /// @value(0x2)
+    ioring-poll-update-events,
+    /// @value(0x4)
+    ioring-poll-update-user-data,
+    /// @value(0x8)
+    ioring-poll-add-level,
+    /// @value(0x1)
+    ioring-async-cancel-all,
+    /// @value(0x2)
+    ioring-async-cancel-fd,
+    /// @value(0x4)
+    ioring-async-cancel-any,
+    /// @value(0x8)
+    ioring-async-cancel-fd-fixed,
+    /// @value(0x10)
+    ioring-async-cancel-userdata,
+    /// @value(0x20)
+    ioring-async-cancel-op,
+    /// @value(0x1)
+    ioring-recvsend-poll-first,
+    /// @value(0x2)
+    ioring-recv-multishot,
+    /// @value(0x4)
+    ioring-recvsend-fixed-buf,
+    /// @value(0x8)
+    ioring-send-zc-report-usage,
+    /// @value(0x10)
+    ioring-recvsend-bundle,
+    /// @value(0x20)
+    ioring-send-vectorized,
+    /// @value(0x1)
+    ioring-accept-multishot,
+    /// @value(0x2)
+    ioring-accept-dontwait,
+    /// @value(0x4)
+    ioring-accept-poll-first,
+    /// @value(0x1)
+    ioring-nop-inject-result,
+    /// @value(0x2)
+    ioring-nop-file,
+    /// @value(0x4)
+    ioring-nop-fixed-file,
+    /// @value(0x8)
+    ioring-nop-fixed-buffer,
+    /// @value(0x10)
+    ioring-nop-tw,
+    /// @value(0x20)
+    ioring-nop-cqe32,
+  }
+
+  /// `io_uring_register` operations (`enum io_uring_register_op`).
+  /// @repr(u32)
+  enum io-uring-register-op {
+    /// @value(0)
+    ioring-register-buffers,
+    /// @value(1)
+    ioring-unregister-buffers,
+    /// @value(2)
+    ioring-register-files,
+    /// @value(3)
+    ioring-unregister-files,
+    /// @value(4)
+    ioring-register-eventfd,
+    /// @value(5)
+    ioring-unregister-eventfd,
+    /// @value(6)
+    ioring-register-files-update,
+    /// @value(7)
+    ioring-register-eventfd-async,
+    /// @value(8)
+    ioring-register-probe,
+    /// @value(9)
+    ioring-register-personality,
+    /// @value(10)
+    ioring-unregister-personality,
+    /// @value(11)
+    ioring-register-restrictions,
+    /// @value(12)
+    ioring-register-enable-rings,
+    /// @value(13)
+    ioring-register-files2,
+    /// @value(14)
+    ioring-register-files-update2,
+    /// @value(15)
+    ioring-register-buffers2,
+    /// @value(16)
+    ioring-register-buffers-update,
+    /// @value(17)
+    ioring-register-iowq-aff,
+    /// @value(18)
+    ioring-unregister-iowq-aff,
+    /// @value(19)
+    ioring-register-iowq-max-workers,
+    /// @value(20)
+    ioring-register-ring-fds,
+    /// @value(21)
+    ioring-unregister-ring-fds,
+    /// @value(22)
+    ioring-register-pbuf-ring,
+    /// @value(23)
+    ioring-unregister-pbuf-ring,
+    /// @value(24)
+    ioring-register-sync-cancel,
+    /// @value(25)
+    ioring-register-file-alloc-range,
+    /// @value(26)
+    ioring-register-pbuf-status,
+    /// @value(27)
+    ioring-register-napi,
+    /// @value(28)
+    ioring-unregister-napi,
+    /// @value(29)
+    ioring-register-clock,
+    /// @value(30)
+    ioring-register-clone-buffers,
+    /// @value(31)
+    ioring-register-send-msg-ring,
+    /// @value(32)
+    ioring-register-zcrx-ifq,
+    /// @value(33)
+    ioring-register-resize-rings,
+    /// @value(34)
+    ioring-register-mem-region,
+    /// @value(35)
+    ioring-register-query,
+    /// @value(36)
+    ioring-register-zcrx-ctrl,
+    /// @value(37)
+    ioring-register-bpf-filter,
+    /// @value(38)
+    ioring-register-last,
+    /// @value(0x80000000)
+    ioring-register-use-registered-ring,
+  }
+
+  /// Other io_uring constants: the `mmap` offsets of the rings (`IORING_OFF_*`), the buffer id
+  /// shift of a completion, `IORING_FILE_INDEX_ALLOC`, `IORING_REGISTER_FILES_SKIP` and the
+  /// probe's `IO_URING_OP_SUPPORTED`.
+  /// @repr(s64)
+  enum io-uring-misc {
+    /// @value(0x0)
+    ioring-off-sq-ring,
+    /// @value(0x8000000)
+    ioring-off-cq-ring,
+    /// @value(0x10000000)
+    ioring-off-sqes,
+    /// @value(0x80000000)
+    ioring-off-pbuf-ring,
+    /// @value(16)
+    ioring-off-pbuf-shift,
+    /// @value(0xf8000000)
+    ioring-off-mmap-mask,
+    /// @value(16)
+    ioring-cqe-buffer-shift,
+    /// @value(0xffffffff)
+    ioring-file-index-alloc,
+    /// @value(-2)
+    ioring-register-files-skip,
+    /// @value(0x1)
+    io-uring-op-supported,
+    /// @value(0x1)
+    ioring-rsrc-register-sparse,
+  }
+
+  /// `IORING_REGISTER_FILES_UPDATE` argument (`struct io_uring_files_update`).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(8)
+  record io-uring-files-update {
+    offset: u32,
+    resv: u32,
+    /// Guest address of the `s32` descriptors, zero-extended.
+    fds: u64,
+  }
+
+  /// `IORING_REGISTER_FILES2`/`BUFFERS2` argument (`struct io_uring_rsrc_register`).
+  /// @kernel-only
+  /// @size(32)
+  /// @align(8)
+  record io-uring-rsrc-register {
+    nr: u32,
+    %flags: u32,
+    resv2: u64,
+    data: u64,
+    tags: u64,
+  }
+
+  /// `IORING_REGISTER_FILES_UPDATE2`/`BUFFERS_UPDATE` argument (`struct io_uring_rsrc_update2`).
+  /// @kernel-only
+  /// @size(32)
+  /// @align(8)
+  record io-uring-rsrc-update2 {
+    offset: u32,
+    resv: u32,
+    data: u64,
+    tags: u64,
+    nr: u32,
+    resv2: u32,
+  }
+
+  /// The header of `IORING_REGISTER_PROBE`'s result (`struct io_uring_probe`); `ops_len`
+  /// `io-uring-probe-op`s follow it.
+  /// @kernel-only
+  /// @size(16)
+  /// @align(4)
+  record io-uring-probe {
+    last-op: u8,
+    ops-len: u8,
+    resv: u16,
+    resv2: list<u32, 3>,
+  }
+
+  /// One operation of `IORING_REGISTER_PROBE`'s result (`struct io_uring_probe_op`).
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record io-uring-probe-op {
+    op: u8,
+    resv: u8,
+    %flags: u16,
+    resv2: u32,
+  }
+
+  /// `rseq` flags (`enum rseq_flags`, `linux/rseq.h`).
+  /// @repr(s32)
+  /// @c(int)
+  flags rseq-flags {
+    /// @value(0x1)
+    rseq-flag-unregister,
+    /// @value(0x2)
+    rseq-flag-slice-ext-default-on,
+  }
+
+  /// `struct rseq.cpu_id` values before or without a registration (`enum rseq_cpu_id_state`),
+  /// and the sizes the auxiliary vector reports (`AT_RSEQ_FEATURE_SIZE`, `AT_RSEQ_ALIGN`).
+  /// @repr(s32)
+  enum rseq-misc {
+    /// @value(-1)
+    rseq-cpu-id-uninitialized,
+    /// @value(-2)
+    rseq-cpu-id-registration-failed,
+    /// The size of the area before `struct rseq` became extensible (`ORIG_RSEQ_SIZE`, `kernel/rseq.c`).
+    /// @value(32)
+    orig-rseq-size,
+  }
+
+  /// `struct rseq.flags` and `struct rseq_cs.flags` (`enum rseq_cs_flags`).
+  /// @repr(u32)
+  flags rseq-cs-flags {
+    /// @value(0x1)
+    rseq-cs-flag-no-restart-on-preempt,
+    /// @value(0x2)
+    rseq-cs-flag-no-restart-on-signal,
+    /// @value(0x4)
+    rseq-cs-flag-no-restart-on-migrate,
+    /// @value(0x10)
+    rseq-cs-flag-slice-ext-available,
+    /// @value(0x20)
+    rseq-cs-flag-slice-ext-enabled,
+  }
+
+  /// A thread's restartable sequences area (`struct rseq`, `linux/rseq.h`), up to its feature
+  /// end. Linux aligns it to 32 bytes, which WIT cannot express; the layout is the same.
+  /// @kernel-only
+  /// @size(40)
+  /// @align(8)
+  record rseq {
+    cpu-id-start: u32,
+    cpu-id: u32,
+    /// Guest address of the active `struct rseq_cs`, zero-extended.
+    rseq-cs: u64,
+    %flags: u32,
+    node-id: u32,
+    mm-cid: u32,
+    /// `struct rseq_slice_ctrl`.
+    slice-ctrl: u32,
+    /// @c-name(__reserved)
+    reserved: u8,
+  }
+
   // ==== Terminals and ioctl requests ====
 
   /// Kernel terminal attributes for `TCGETS`/`TCSETS*` (asm-generic `struct termios`, `NCCS` 19).
