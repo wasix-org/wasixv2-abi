@@ -1756,6 +1756,584 @@ interface types {
     arg-max,
   }
 
+  // ==== File handles, inode flags, ACLs, quotas and fanotify ====
+
+  /// Limits and handle types of `name_to_handle_at` (`linux/fcntl.h` `MAX_HANDLE_SZ`,
+  /// `linux/exportfs.h` `enum fid_type` and its flag bits).
+  /// @repr(s32)
+  enum file-handle-misc {
+    /// `FILEID_ROOT`: the root of the filesystem, which some filesystems encode as such.
+    /// @value(0)
+    fileid-root,
+    /// `FILEID_INO32_GEN`: a 32-bit inode number and a 32-bit generation.
+    /// @value(1)
+    fileid-ino32-gen,
+    /// `FILEID_INO32_GEN_PARENT`: also the parent's inode number and generation.
+    /// @value(2)
+    fileid-ino32-gen-parent,
+    /// `FILEID_INO64_GEN`: a 64-bit inode number and a 32-bit generation.
+    /// @value(0x81)
+    fileid-ino64-gen,
+    /// `FILEID_INO64_GEN_PARENT`.
+    /// @value(0x82)
+    fileid-ino64-gen-parent,
+    /// `FILEID_INVALID`.
+    /// @value(0xff)
+    fileid-invalid,
+    /// `MAX_HANDLE_SZ`: the most bytes `name_to_handle_at` fills.
+    /// @value(128)
+    max-handle-sz,
+    /// `FILEID_IS_CONNECTABLE`: a handle made with `AT_HANDLE_CONNECTABLE`.
+    /// @value(0x10000)
+    fileid-is-connectable,
+    /// `FILEID_IS_DIR`: a connectable handle of a directory.
+    /// @value(0x20000)
+    fileid-is-dir,
+  }
+
+  /// `FS_IOC_FSGETXATTR`/`FS_IOC_FSSETXATTR` attributes (`struct fsxattr`, `linux/fs.h`).
+  /// @kernel-only
+  /// @size(28)
+  /// @align(4)
+  record fsxattr {
+    fsx-xflags: u32,
+    fsx-extsize: u32,
+    fsx-nextents: u32,
+    fsx-projid: u32,
+    fsx-cowextsize: u32,
+    fsx-pad: list<u8, 8>,
+  }
+
+  /// Inode flags of `FS_IOC_GETFLAGS`/`FS_IOC_SETFLAGS` (`FS_*_FL`, `linux/fs.h`; the ext2
+  /// on-disk encoding).
+  /// @repr(u32)
+  /// @c(int)
+  flags fs-inode-flags {
+    /// @value(0x1)
+    fs-secrm-fl,
+    /// @value(0x2)
+    fs-unrm-fl,
+    /// @value(0x4)
+    fs-compr-fl,
+    /// @value(0x8)
+    fs-sync-fl,
+    /// @value(0x10)
+    fs-immutable-fl,
+    /// @value(0x20)
+    fs-append-fl,
+    /// @value(0x40)
+    fs-nodump-fl,
+    /// @value(0x80)
+    fs-noatime-fl,
+    /// @value(0x100)
+    fs-dirty-fl,
+    /// @value(0x200)
+    fs-comprblk-fl,
+    /// @value(0x400)
+    fs-nocomp-fl,
+    /// @value(0x800)
+    fs-encrypt-fl,
+    /// @value(0x1000)
+    fs-btree-fl,
+    /// @value(0x1000)
+    fs-index-fl,
+    /// @value(0x2000)
+    fs-imagic-fl,
+    /// @value(0x4000)
+    fs-journal-data-fl,
+    /// @value(0x8000)
+    fs-notail-fl,
+    /// @value(0x10000)
+    fs-dirsync-fl,
+    /// @value(0x20000)
+    fs-topdir-fl,
+    /// @value(0x40000)
+    fs-huge-file-fl,
+    /// @value(0x80000)
+    fs-extent-fl,
+    /// @value(0x100000)
+    fs-verity-fl,
+    /// @value(0x200000)
+    fs-ea-inode-fl,
+    /// @value(0x400000)
+    fs-eofblocks-fl,
+    /// @value(0x800000)
+    fs-nocow-fl,
+    /// @value(0x2000000)
+    fs-dax-fl,
+    /// @value(0x10000000)
+    fs-inline-data-fl,
+    /// @value(0x20000000)
+    fs-projinherit-fl,
+    /// @value(0x40000000)
+    fs-casefold-fl,
+    /// @value(0x80000000)
+    fs-reserved-fl,
+    /// @value(0x3dfff)
+    fs-fl-user-visible,
+    /// @value(0x380ff)
+    fs-fl-user-modifiable,
+  }
+
+  /// Extended inode flags of `struct fsxattr` and `struct file_attr` (`FS_XFLAG_*`,
+  /// `linux/fs.h`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags fs-xflags {
+    /// @value(0x1)
+    fs-xflag-realtime,
+    /// @value(0x2)
+    fs-xflag-prealloc,
+    /// @value(0x8)
+    fs-xflag-immutable,
+    /// @value(0x10)
+    fs-xflag-append,
+    /// @value(0x20)
+    fs-xflag-sync,
+    /// @value(0x40)
+    fs-xflag-noatime,
+    /// @value(0x80)
+    fs-xflag-nodump,
+    /// @value(0x100)
+    fs-xflag-rtinherit,
+    /// @value(0x200)
+    fs-xflag-projinherit,
+    /// @value(0x400)
+    fs-xflag-nosymlinks,
+    /// @value(0x800)
+    fs-xflag-extsize,
+    /// @value(0x1000)
+    fs-xflag-extszinherit,
+    /// @value(0x2000)
+    fs-xflag-nodefrag,
+    /// @value(0x4000)
+    fs-xflag-filestream,
+    /// @value(0x8000)
+    fs-xflag-dax,
+    /// @value(0x10000)
+    fs-xflag-cowextsize,
+    /// @value(0x20000)
+    fs-xflag-verity,
+    /// @value(0x40000)
+    fs-xflag-casefold,
+    /// @value(0x80000)
+    fs-xflag-casenonpreserving,
+    /// @value(0x80000000)
+    fs-xflag-hasattr,
+  }
+
+  /// `file_getattr`/`file_setattr` sizes (`FILE_ATTR_SIZE_*`, `linux/fs.h`).
+  /// @repr(u32)
+  enum file-attr-size {
+    /// @value(24)
+    file-attr-size-ver0,
+    /// @value(24)
+    file-attr-size-latest,
+  }
+
+  /// Header of a POSIX ACL extended attribute value (`struct posix_acl_xattr_header`,
+  /// `linux/posix_acl_xattr.h`), little-endian; `posix-acl-xattr-entry` records follow.
+  /// @kernel-only
+  /// @size(4)
+  /// @align(4)
+  record posix-acl-xattr-header {
+    a-version: u32,
+  }
+
+  /// One entry of a POSIX ACL extended attribute (`struct posix_acl_xattr_entry`),
+  /// little-endian.
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record posix-acl-xattr-entry {
+    e-tag: u16,
+    e-perm: u16,
+    e-id: u32,
+  }
+
+  /// POSIX ACL tags, permissions and constants (`linux/posix_acl.h`,
+  /// `linux/posix_acl_xattr.h`).
+  /// @repr(s32)
+  enum posix-acl-misc {
+    /// @value(-1)
+    acl-undefined-id,
+    /// @value(0x1)
+    acl-execute,
+    /// @value(0x1)
+    acl-user-obj,
+    /// @value(0x2)
+    acl-user,
+    /// @value(0x2)
+    acl-write,
+    /// @value(0x2)
+    posix-acl-xattr-version,
+    /// @value(0x4)
+    acl-group-obj,
+    /// @value(0x4)
+    acl-read,
+    /// @value(0x8)
+    acl-group,
+    /// @value(0x10)
+    acl-mask,
+    /// @value(0x20)
+    acl-other,
+    /// @value(0x4000)
+    acl-type-default,
+    /// @value(0x8000)
+    acl-type-access,
+  }
+
+  /// Quota limits and usage of one id (`struct if_dqblk`, `linux/quota.h`).
+  /// @kernel-only
+  /// @size(72)
+  /// @align(8)
+  record if-dqblk {
+    dqb-bhardlimit: u64,
+    dqb-bsoftlimit: u64,
+    dqb-curspace: u64,
+    dqb-ihardlimit: u64,
+    dqb-isoftlimit: u64,
+    dqb-curinodes: u64,
+    dqb-btime: u64,
+    dqb-itime: u64,
+    dqb-valid: u32,
+  }
+
+  /// `Q_GETNEXTQUOTA` result (`struct if_nextdqblk`).
+  /// @kernel-only
+  /// @size(72)
+  /// @align(8)
+  record if-nextdqblk {
+    dqb-bhardlimit: u64,
+    dqb-bsoftlimit: u64,
+    dqb-curspace: u64,
+    dqb-ihardlimit: u64,
+    dqb-isoftlimit: u64,
+    dqb-curinodes: u64,
+    dqb-btime: u64,
+    dqb-itime: u64,
+    dqb-valid: u32,
+    dqb-id: u32,
+  }
+
+  /// Quota grace times and flags of one quota type (`struct if_dqinfo`).
+  /// @kernel-only
+  /// @size(24)
+  /// @align(8)
+  record if-dqinfo {
+    dqi-bgrace: u64,
+    dqi-igrace: u64,
+    dqi-flags: u32,
+    dqi-valid: u32,
+  }
+
+  /// `quotactl` commands (`Q_*`, `QCMD(cmd, type)` = `cmd << SUBCMDSHIFT | type`), quota
+  /// types, formats and the `dqb-valid`/`dqi-valid` bits (`linux/quota.h`).
+  /// @repr(u32)
+  enum quota-misc {
+    /// @value(0)
+    usrquota,
+    /// @value(1)
+    grpquota,
+    /// @value(1)
+    qif-blimits,
+    /// @value(1)
+    iif-bgrace,
+    /// @value(1)
+    dqf-root-squash,
+    /// @value(2)
+    prjquota,
+    /// @value(2)
+    qif-space,
+    /// @value(2)
+    iif-igrace,
+    /// @value(4)
+    qif-ilimits,
+    /// @value(4)
+    iif-flags,
+    /// @value(5)
+    qfmt-shmem,
+    /// @value(7)
+    iif-all,
+    /// @value(8)
+    subcmdshift,
+    /// @value(8)
+    qif-inodes,
+    /// @value(0xff)
+    subcmdmask,
+    /// @value(16)
+    qif-btime,
+    /// @value(32)
+    qif-itime,
+    /// @value(63)
+    qif-all,
+    /// @value(0x800001)
+    q-sync,
+    /// @value(0x800002)
+    q-quotaon,
+    /// @value(0x800003)
+    q-quotaoff,
+    /// @value(0x800004)
+    q-getfmt,
+    /// @value(0x800005)
+    q-getinfo,
+    /// @value(0x800006)
+    q-setinfo,
+    /// @value(0x800007)
+    q-getquota,
+    /// @value(0x800008)
+    q-setquota,
+    /// @value(0x800009)
+    q-getnextquota,
+  }
+
+  /// A permission event's answer, written to the fanotify descriptor (`struct
+  /// fanotify_response`, `linux/fanotify.h`).
+  /// @c(struct fanotify_response)
+  /// @size(8)
+  /// @align(4)
+  record fanotify-response {
+    fd: s32,
+    response: u32,
+  }
+
+  /// Header of each information record after an fanotify event (`struct
+  /// fanotify_event_info_header`).
+  /// @c(struct fanotify_event_info_header)
+  /// @size(4)
+  /// @align(2)
+  record fanotify-event-info-header {
+    info-type: u8,
+    pad: u8,
+    len: u16,
+  }
+
+  /// A file identifier record (`struct fanotify_event_info_fid`); a `file-handle` follows at
+  /// offset 12, and for `FAN_EVENT_INFO_TYPE_DFID_NAME` a NUL-terminated name after it.
+  /// @c(struct fanotify_event_info_fid)
+  /// @size(12)
+  /// @align(4)
+  record fanotify-event-info-fid {
+    hdr: fanotify-event-info-header,
+    fsid: kernel-fsid,
+  }
+
+  /// A pidfd record (`struct fanotify_event_info_pidfd`).
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record fanotify-event-info-pidfd {
+    hdr: fanotify-event-info-header,
+    pidfd: s32,
+  }
+
+  /// A filesystem error record (`struct fanotify_event_info_error`).
+  /// @kernel-only
+  /// @size(12)
+  /// @align(4)
+  record fanotify-event-info-error {
+    hdr: fanotify-event-info-header,
+    error: s32,
+    error-count: u32,
+  }
+
+  /// A mount record (`struct fanotify_event_info_mnt`).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(8)
+  record fanotify-event-info-mnt {
+    hdr: fanotify-event-info-header,
+    mnt-id: u64,
+  }
+
+  /// `fanotify_init` flags (`FAN_CLOEXEC`, `FAN_CLASS_*`, `FAN_REPORT_*`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags fanotify-init-flags {
+    /// @value(0x0)
+    fan-class-notif,
+    /// @value(0x1)
+    fan-cloexec,
+    /// @value(0x2)
+    fan-nonblock,
+    /// @value(0x4)
+    fan-class-content,
+    /// @value(0x8)
+    fan-class-pre-content,
+    /// @value(0xc)
+    fan-all-class-bits,
+    /// @value(0x10)
+    fan-unlimited-queue,
+    /// @value(0x20)
+    fan-unlimited-marks,
+    /// @value(0x40)
+    fan-enable-audit,
+    /// @value(0x80)
+    fan-report-pidfd,
+    /// @value(0x100)
+    fan-report-tid,
+    /// @value(0x200)
+    fan-report-fid,
+    /// @value(0x400)
+    fan-report-dir-fid,
+    /// @value(0x800)
+    fan-report-name,
+    /// @value(0xc00)
+    fan-report-dfid-name,
+    /// @value(0x1000)
+    fan-report-target-fid,
+    /// @value(0x1e00)
+    fan-report-dfid-name-target,
+    /// @value(0x2000)
+    fan-report-fd-error,
+    /// @value(0x4000)
+    fan-report-mnt,
+  }
+
+  /// `fanotify_mark` flags (`FAN_MARK_*`).
+  /// @repr(u32)
+  /// @c(unsigned)
+  flags fanotify-mark-flags {
+    /// @value(0x0)
+    fan-mark-inode,
+    /// @value(0x1)
+    fan-mark-add,
+    /// @value(0x2)
+    fan-mark-remove,
+    /// @value(0x4)
+    fan-mark-dont-follow,
+    /// @value(0x8)
+    fan-mark-onlydir,
+    /// @value(0x10)
+    fan-mark-mount,
+    /// @value(0x20)
+    fan-mark-ignored-mask,
+    /// @value(0x40)
+    fan-mark-ignored-surv-modify,
+    /// @value(0x80)
+    fan-mark-flush,
+    /// @value(0x100)
+    fan-mark-filesystem,
+    /// @value(0x110)
+    fan-mark-mntns,
+    /// @value(0x200)
+    fan-mark-evictable,
+    /// @value(0x400)
+    fan-mark-ignore,
+    /// @value(0x440)
+    fan-mark-ignore-surv,
+  }
+
+  /// fanotify event bits of a mark's mask and of `fanotify-event-metadata.mask` (`FAN_*`).
+  /// @repr(u64)
+  /// @c(uint64_t)
+  flags fanotify-mask {
+    /// @value(0x1)
+    fan-access,
+    /// @value(0x2)
+    fan-modify,
+    /// @value(0x4)
+    fan-attrib,
+    /// @value(0x8)
+    fan-close-write,
+    /// @value(0x10)
+    fan-close-nowrite,
+    /// @value(0x18)
+    fan-close,
+    /// @value(0x20)
+    fan-open,
+    /// @value(0x40)
+    fan-moved-from,
+    /// @value(0x80)
+    fan-moved-to,
+    /// @value(0xc0)
+    fan-move,
+    /// @value(0x100)
+    fan-create,
+    /// @value(0x200)
+    fan-delete,
+    /// @value(0x400)
+    fan-delete-self,
+    /// @value(0x800)
+    fan-move-self,
+    /// @value(0x1000)
+    fan-open-exec,
+    /// @value(0x4000)
+    fan-q-overflow,
+    /// @value(0x8000)
+    fan-fs-error,
+    /// @value(0x10000)
+    fan-open-perm,
+    /// @value(0x20000)
+    fan-access-perm,
+    /// @value(0x40000)
+    fan-open-exec-perm,
+    /// @value(0x100000)
+    fan-pre-access,
+    /// @value(0x1000000)
+    fan-mnt-attach,
+    /// @value(0x2000000)
+    fan-mnt-detach,
+    /// @value(0x8000000)
+    fan-event-on-child,
+    /// @value(0x10000000)
+    fan-rename,
+    /// @value(0x40000000)
+    fan-ondir,
+  }
+
+  /// fanotify constants: the metadata version, permission responses, the special
+  /// descriptor values and the information record types (`linux/fanotify.h`).
+  /// @repr(s32)
+  enum fanotify-misc {
+    /// `FAN_EPIDFD`: the pidfd of a process that is gone.
+    /// @value(-2)
+    fan-epidfd,
+    /// `FAN_NOFD`: an event without a descriptor (FID reporting, overflow).
+    /// @value(-1)
+    fan-nofd,
+    /// @value(-1)
+    fan-nopidfd,
+    /// @value(0)
+    fan-response-info-none,
+    /// @value(1)
+    fan-allow,
+    /// @value(1)
+    fan-event-info-type-fid,
+    /// @value(1)
+    fan-response-info-audit-rule,
+    /// @value(2)
+    fan-deny,
+    /// @value(2)
+    fan-event-info-type-dfid-name,
+    /// @value(3)
+    fan-event-info-type-dfid,
+    /// @value(3)
+    fanotify-metadata-version,
+    /// @value(4)
+    fan-event-info-type-pidfd,
+    /// @value(5)
+    fan-event-info-type-error,
+    /// @value(6)
+    fan-event-info-type-range,
+    /// @value(7)
+    fan-event-info-type-mnt,
+    /// @value(8)
+    fan-errno-bits,
+    /// @value(10)
+    fan-event-info-type-old-dfid-name,
+    /// @value(12)
+    fan-event-info-type-new-dfid-name,
+    /// @value(0x10)
+    fan-audit,
+    /// @value(24)
+    fan-errno-shift,
+    /// @value(0x20)
+    fan-info,
+    /// @value(0xff)
+    fan-errno-mask,
+  }
+
   // ==== Polling and event notification ====
 
   /// `ppoll_time64` entry (`struct pollfd`).
@@ -6441,8 +7019,17 @@ interface types {
     tiocsptlck,
     /// @value(0x40045436)
     tiocsig,
+    /// `FS_IOC_SETFLAGS` (`_IOW('f', 2, long)`, 32-bit `long`).
+    /// @value(0x40046602)
+    fs-ioc-setflags,
+    /// `FS_IOC_SETVERSION` (`_IOW('v', 2, long)`).
+    /// @value(0x40047602)
+    fs-ioc-setversion,
     /// @value(0x40085400)
     tfd-ioc-set-ticks,
+    /// `FS_IOC_FSSETXATTR` (`_IOW('X', 32, struct fsxattr)`).
+    /// @value(0x401c5820)
+    fs-ioc-fssetxattr,
     /// @value(0x402c542b)
     tcsets2,
     /// @value(0x402c542c)
@@ -6459,6 +7046,15 @@ interface types {
     tiocgptlck,
     /// @value(0x80045440)
     tiocgexcl,
+    /// `FS_IOC_GETFLAGS` (`_IOR('f', 1, long)`, 32-bit `long`).
+    /// @value(0x80046601)
+    fs-ioc-getflags,
+    /// `FS_IOC_GETVERSION` (`_IOR('v', 1, long)`): the inode's generation.
+    /// @value(0x80047601)
+    fs-ioc-getversion,
+    /// `FS_IOC_FSGETXATTR` (`_IOR('X', 31, struct fsxattr)`).
+    /// @value(0x801c581f)
+    fs-ioc-fsgetxattr,
     /// @value(0x802c542a)
     tcgets2,
     /// `_IOWR(PIDFS_IOCTL_MAGIC, 11, struct pidfd_info)` with the 88-byte `pidfd-info`
