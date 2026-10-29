@@ -5050,6 +5050,8 @@ interface types {
     sol-tls,
     /// @value(283)
     sol-xdp,
+    /// @value(132)
+    sol-sctp,
   }
 
   /// `SOL_SOCKET` options (`asm-generic/socket.h`).
@@ -5927,6 +5929,347 @@ interface types {
   record unix-diag-vfs {
     udiag-vfs-ino: u32,
     udiag-vfs-dev: u32,
+  }
+
+  /// `SCTP_INITMSG` and the `SCTP_INIT` control message (`struct sctp_initmsg`, UAPI `linux/sctp.h`, which musl does not have).
+  /// @kernel-only
+  /// @size(8)
+  /// @align(2)
+  record sctp-initmsg {
+    sinit-num-ostreams: u16,
+    sinit-max-instreams: u16,
+    sinit-max-attempts: u16,
+    sinit-max-init-timeo: u16,
+  }
+
+  /// `SCTP_SNDRCV` control message and `SCTP_DEFAULT_SEND_PARAM` (`struct sctp_sndrcvinfo`); `sinfo-flags` holds `sctp-sinfo-flags`.
+  /// @kernel-only
+  /// @size(32)
+  /// @align(4)
+  record sctp-sndrcvinfo {
+    sinfo-stream: u16,
+    sinfo-ssn: u16,
+    sinfo-flags: u16,
+    sinfo-ppid: u32,
+    sinfo-context: u32,
+    sinfo-timetolive: u32,
+    sinfo-tsn: u32,
+    sinfo-cumtsn: u32,
+    sinfo-assoc-id: s32,
+  }
+
+  /// `SCTP_SNDINFO` control message and `SCTP_DEFAULT_SNDINFO` (`struct sctp_sndinfo`).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(4)
+  record sctp-sndinfo {
+    snd-sid: u16,
+    snd-flags: u16,
+    snd-ppid: u32,
+    snd-context: u32,
+    snd-assoc-id: s32,
+  }
+
+  /// `SCTP_RCVINFO` control message (`struct sctp_rcvinfo`).
+  /// @kernel-only
+  /// @size(28)
+  /// @align(4)
+  record sctp-rcvinfo {
+    rcv-sid: u16,
+    rcv-ssn: u16,
+    rcv-flags: u16,
+    rcv-ppid: u32,
+    rcv-tsn: u32,
+    rcv-cumtsn: u32,
+    rcv-context: u32,
+    rcv-assoc-id: s32,
+  }
+
+  /// `SCTP_NXTINFO` control message (`struct sctp_nxtinfo`).
+  /// @kernel-only
+  /// @size(16)
+  /// @align(4)
+  record sctp-nxtinfo {
+    nxt-sid: u16,
+    nxt-flags: u16,
+    nxt-ppid: u32,
+    nxt-length: u32,
+    nxt-assoc-id: s32,
+  }
+
+  /// `SCTP_EVENTS` (`struct sctp_event_subscribe`): one byte per notification. The last field is the kernel's `sctp_send_failure_event_event`.
+  /// @kernel-only
+  /// @size(14)
+  /// @align(1)
+  record sctp-event-subscribe {
+    sctp-data-io-event: u8,
+    sctp-association-event: u8,
+    sctp-address-event: u8,
+    sctp-send-failure-event: u8,
+    sctp-peer-error-event: u8,
+    sctp-shutdown-event: u8,
+    sctp-partial-delivery-event: u8,
+    sctp-adaptation-layer-event: u8,
+    sctp-authentication-event: u8,
+    sctp-sender-dry-event: u8,
+    sctp-stream-reset-event: u8,
+    sctp-assoc-reset-event: u8,
+    sctp-stream-change-event: u8,
+    sctp-send-failure-event-event: u8,
+  }
+
+  /// `SCTP_EVENT` (`struct sctp_event`): one notification type on or off.
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record sctp-event {
+    se-assoc-id: s32,
+    se-type: u16,
+    se-on: u8,
+    se-pad: u8,
+  }
+
+  /// `SCTP_RTOINFO` (`struct sctp_rtoinfo`), in milliseconds.
+  /// @kernel-only
+  /// @size(16)
+  /// @align(4)
+  record sctp-rtoinfo {
+    srto-assoc-id: s32,
+    srto-initial: u32,
+    srto-max: u32,
+    srto-min: u32,
+  }
+
+  /// `SCTP_ASSOCINFO` (`struct sctp_assocparams`).
+  /// @kernel-only
+  /// @size(20)
+  /// @align(4)
+  record sctp-assocparams {
+    sasoc-assoc-id: s32,
+    sasoc-asocmaxrxt: u16,
+    sasoc-number-peer-destinations: u16,
+    sasoc-peer-rwnd: u32,
+    sasoc-local-rwnd: u32,
+    sasoc-cookie-life: u32,
+  }
+
+  /// `SCTP_MAXSEG`, `SCTP_CONTEXT`, `SCTP_MAX_BURST` and the like (`struct sctp_assoc_value`).
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record sctp-assoc-value {
+    assoc-id: s32,
+    assoc-value: u32,
+  }
+
+  /// `SCTP_GET_PEER_ADDRS`/`SCTP_GET_LOCAL_ADDRS` header (`struct sctp_getaddrs`); the packed addresses follow it.
+  /// @kernel-only
+  /// @size(8)
+  /// @align(4)
+  record sctp-getaddrs {
+    assoc-id: s32,
+    addr-num: u32,
+  }
+
+  /// `SCTP_ASSOC_CHANGE` notification (`struct sctp_assoc_change`); `sac-state` is `sctp-sac-state`. Variable data may follow.
+  /// @kernel-only
+  /// @size(20)
+  /// @align(4)
+  record sctp-assoc-change {
+    sac-type: u16,
+    sac-flags: u16,
+    sac-length: u32,
+    sac-state: u16,
+    sac-error: u16,
+    sac-outbound-streams: u16,
+    sac-inbound-streams: u16,
+    sac-assoc-id: s32,
+  }
+
+  /// `SCTP_SHUTDOWN_EVENT` notification (`struct sctp_shutdown_event`).
+  /// @kernel-only
+  /// @size(12)
+  /// @align(4)
+  record sctp-shutdown-event {
+    sse-type: u16,
+    sse-flags: u16,
+    sse-length: u32,
+    sse-assoc-id: s32,
+  }
+
+  /// `SOL_SCTP` socket options (UAPI `linux/sctp.h`).
+  /// @repr(s32)
+  enum sctp-option {
+    /// @value(0)
+    sctp-rtoinfo,
+    /// @value(1)
+    sctp-associnfo,
+    /// @value(2)
+    sctp-initmsg,
+    /// @value(3)
+    sctp-nodelay,
+    /// @value(4)
+    sctp-autoclose,
+    /// @value(5)
+    sctp-set-peer-primary-addr,
+    /// @value(6)
+    sctp-primary-addr,
+    /// @value(7)
+    sctp-adaptation-layer,
+    /// @value(8)
+    sctp-disable-fragments,
+    /// @value(9)
+    sctp-peer-addr-params,
+    /// @value(10)
+    sctp-default-send-param,
+    /// @value(11)
+    sctp-events,
+    /// @value(12)
+    sctp-i-want-mapped-v4-addr,
+    /// @value(13)
+    sctp-maxseg,
+    /// @value(14)
+    sctp-status,
+    /// @value(15)
+    sctp-get-peer-addr-info,
+    /// @value(16)
+    sctp-delayed-ack-time,
+    /// @value(17)
+    sctp-context,
+    /// @value(18)
+    sctp-fragment-interleave,
+    /// @value(19)
+    sctp-partial-delivery-point,
+    /// @value(20)
+    sctp-max-burst,
+    /// @value(28)
+    sctp-get-assoc-number,
+    /// @value(29)
+    sctp-get-assoc-id-list,
+    /// @value(32)
+    sctp-recvrcvinfo,
+    /// @value(33)
+    sctp-recvnxtinfo,
+    /// @value(34)
+    sctp-default-sndinfo,
+    /// @value(36)
+    sctp-reuse-port,
+    /// @value(100)
+    sctp-sockopt-bindx-add,
+    /// @value(101)
+    sctp-sockopt-bindx-rem,
+    /// @value(102)
+    sctp-sockopt-peeloff,
+    /// @value(108)
+    sctp-get-peer-addrs,
+    /// @value(109)
+    sctp-get-local-addrs,
+    /// @value(110)
+    sctp-sockopt-connectx,
+    /// @value(111)
+    sctp-sockopt-connectx3,
+    /// @value(113)
+    sctp-pr-supported,
+    /// @value(114)
+    sctp-default-prinfo,
+    /// @value(122)
+    sctp-sockopt-peeloff-flags,
+    /// @value(127)
+    sctp-event,
+  }
+
+  /// `SOL_SCTP` control message types (`enum sctp_cmsg_type`).
+  /// @repr(s32)
+  enum sctp-cmsg-type {
+    /// @value(0)
+    sctp-init,
+    /// @value(1)
+    sctp-sndrcv,
+    /// @value(2)
+    sctp-sndinfo,
+    /// @value(3)
+    sctp-rcvinfo,
+    /// @value(4)
+    sctp-nxtinfo,
+    /// @value(5)
+    sctp-prinfo,
+    /// @value(6)
+    sctp-authinfo,
+    /// @value(7)
+    sctp-dstaddrv4,
+    /// @value(8)
+    sctp-dstaddrv6,
+  }
+
+  /// `sinfo_flags`/`snd_flags` bits (`enum sctp_sinfo_flags`).
+  /// @repr(u16)
+  flags sctp-sinfo-flags {
+    /// @value(0x1)
+    sctp-unordered,
+    /// @value(0x2)
+    sctp-addr-over,
+    /// @value(0x4)
+    sctp-abort,
+    /// @value(0x8)
+    sctp-sack-immediately,
+    /// @value(0x40)
+    sctp-sendall,
+    /// @value(0x80)
+    sctp-pr-sctp-all,
+    /// `MSG_FIN`.
+    /// @value(0x200)
+    sctp-eof,
+    /// `MSG_NOTIFICATION`.
+    /// @value(0x8000)
+    sctp-notification,
+  }
+
+  /// Notification types (`enum sctp_sn_type`).
+  /// @repr(u16)
+  enum sctp-sn-type {
+    /// @value(32768)
+    sctp-data-io-event,
+    /// @value(32769)
+    sctp-assoc-change,
+    /// @value(32770)
+    sctp-peer-addr-change,
+    /// @value(32771)
+    sctp-send-failed,
+    /// @value(32772)
+    sctp-remote-error,
+    /// @value(32773)
+    sctp-shutdown-event,
+    /// @value(32774)
+    sctp-partial-delivery-event,
+    /// @value(32775)
+    sctp-adaptation-indication,
+    /// @value(32776)
+    sctp-authentication-event,
+    /// @value(32777)
+    sctp-sender-dry-event,
+    /// @value(32778)
+    sctp-stream-reset-event,
+    /// @value(32779)
+    sctp-assoc-reset-event,
+    /// @value(32780)
+    sctp-stream-change-event,
+    /// @value(32781)
+    sctp-send-failed-event,
+  }
+
+  /// `sac_state` of an `SCTP_ASSOC_CHANGE` (`enum sctp_sac_state`).
+  /// @repr(u16)
+  enum sctp-sac-state {
+    /// @value(0)
+    sctp-comm-up,
+    /// @value(1)
+    sctp-comm-lost,
+    /// @value(2)
+    sctp-restart,
+    /// @value(3)
+    sctp-shutdown-comp,
+    /// @value(4)
+    sctp-cant-str-assoc,
   }
 
   // ==== System V IPC ====
