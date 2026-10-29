@@ -8073,6 +8073,12 @@ __WXV2_CONST(NS_GET_NSTYPE, 46851);
 #ifdef NS_GET_OWNER_UID
 __WXV2_CONST(NS_GET_OWNER_UID, 46852);
 #endif
+#ifdef NS_GET_MNTNS_ID
+__WXV2_CONST(NS_GET_MNTNS_ID, 2148054789);
+#endif
+#ifdef NS_GET_ID
+__WXV2_CONST(NS_GET_ID, 2148054797);
+#endif
 #ifdef TIOCSPTLCK
 __WXV2_CONST(TIOCSPTLCK, 1074025521);
 #endif
@@ -8669,6 +8675,11 @@ __WXV2_CONST(TIOCPKT_IOCTL, 0x40);
 /* tiocser-flags */
 #ifdef TIOCSER_TEMT
 __WXV2_CONST(TIOCSER_TEMT, 0x1);
+#endif
+
+/* listns-user-ns */
+#ifdef LISTNS_CURRENT_USER
+__WXV2_CONST(LISTNS_CURRENT_USER, 0xffffffffffffffff);
 #endif
 
 /* mount-flags */

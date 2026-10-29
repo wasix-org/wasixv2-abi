@@ -8562,6 +8562,11 @@ interface types {
     ns-get-nstype,
     /// @value(0xb704)
     ns-get-owner-uid,
+    // Q2 KERNEL-MISC: Linux include/uapi/linux/nsfs.h namespace identifiers.
+    /// @value(0x8008b705)
+    ns-get-mntns-id,
+    /// @value(0x8008b70d)
+    ns-get-id,
     /// @value(0x40045431)
     tiocsptlck,
     /// @value(0x40045436)
@@ -9197,6 +9202,14 @@ interface types {
     mnt-gidmap: u32,
     /// @c-name(__spare2)
     spare2: list<u64, 43>,
+  }
+
+  // Q2 KERNEL-MISC (Linux include/uapi/linux/nsfs.h).
+  /// Special user namespace selector for `listns`.
+  /// @repr(u64)
+  enum listns-user-ns {
+    /// @value(0xffffffffffffffff)
+    listns-current-user,
   }
 
   /// `listns` request (`struct ns_id_req`).
