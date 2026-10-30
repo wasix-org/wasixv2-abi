@@ -1,4 +1,4 @@
-//! [`Model`] -> Rust source for `wasixv2-syscalls`: the `Syscalls` trait with one async method
+//! [`Model`] -> Rust source for `wasixv2-syscalls`: the `Syscalls` trait with one immediate-or-deferred method
 //! per import, the `Syscall` request enum, `SyscallRet`, `dispatch`, the `Layer` trait and the
 //! forwarding `Layered` adapter.
 
@@ -18,6 +18,7 @@ const LOCAL_ITEMS: &[&str] = &[
     "Control",
     "Layer",
     "Layered",
+    "MaybeFuture",
     "SysResult",
     "Syscall",
     "SyscallRet",
@@ -72,7 +73,7 @@ impl Gen {
         };
         let _ = writeln!(
             self.out,
-            "use crate::{{caller::Caller, {memory}result::SysResult}};"
+            "use crate::{{caller::Caller, {memory}result::SysResult, MaybeFuture}};"
         );
     }
 
@@ -95,7 +96,11 @@ impl Gen {
             if m.too_many_args() {
                 self.line("#[allow(clippy::too_many_arguments)]");
             }
-            let _ = writeln!(self.out, "{} {{ Err(Errno::ENOSYS.into()) }}", signature(m));
+            let _ = writeln!(
+                self.out,
+                "{} {{ MaybeFuture::Ready(Err(Errno::ENOSYS.into())) }}",
+                signature(m)
+            );
         }
         self.line("}");
     }
@@ -227,27 +232,23 @@ impl Gen {
 
     fn dispatch(&mut self, methods: &[Method]) {
         self.line("");
-        self.line("pub async fn dispatch<S: Syscalls + ?Sized>(");
-        self.line("syscalls: &S, caller: &Caller<'_>, call: Syscall,");
-        self.line(") -> SysResult<SyscallRet> {");
-        self.line("Ok(match call {");
+        self.line("pub fn dispatch<'a, S: Syscalls + ?Sized>(");
+        self.line("syscalls: &'a S, caller: &'a Caller<'_>, call: Syscall,");
+        self.line(") -> MaybeFuture<'a, SysResult<SyscallRet>> {");
+        self.line("match call {");
         for m in methods {
-            let call = format!("syscalls.{}({}).await?", m.name, call_args(m).join(", "));
-            let pattern = pattern(m);
-            match m.ret {
-                Some(_) => {
-                    let _ = writeln!(self.out, "{pattern} => SyscallRet::{}({call}),", m.variant);
-                }
-                None => {
-                    let _ = writeln!(
-                        self.out,
-                        "{pattern} => {{ {call}; SyscallRet::{} }}",
-                        m.variant
-                    );
-                }
-            }
+            let call = format!("syscalls.{}({})", m.name, call_args(m).join(", "));
+            let conversion = match m.ret {
+                Some(_) => format!("SyscallRet::{}", m.variant),
+                None => format!("|()| SyscallRet::{}", m.variant),
+            };
+            let _ = writeln!(
+                self.out,
+                "{} => {call}.map(|ret| ret.map({conversion})),",
+                pattern(m)
+            );
         }
-        self.line("})");
+        self.line("}");
         self.line("}");
     }
 
@@ -261,7 +262,7 @@ impl Gen {
             }
             let _ = writeln!(self.out, "{} {{", signature(m));
             let _ = writeln!(self.out, "let call = {};", pattern(m));
-            self.line("match self.layer.call(caller, call, &self.inner).await? {");
+            self.line("self.layer.call(caller, call, &self.inner).map(|ret| match ret? {");
             match m.ret {
                 Some(_) => {
                     let _ = writeln!(self.out, "SyscallRet::{}(ret) => Ok(ret),", m.variant);
@@ -271,7 +272,7 @@ impl Gen {
                 }
             }
             let _ = writeln!(self.out, "_ => mismatch(\"{}\"),", m.f.import_name);
-            self.line("}");
+            self.line("})");
             self.line("}");
         }
         self.line("}");
@@ -279,12 +280,12 @@ impl Gen {
     }
 }
 
-/// `async fn name(&self, caller: &Caller<'_>, ...) -> SysResult<T>`.
+/// `fn name<'a>(&'a self, caller: &'a Caller<'_>, ...) -> MaybeFuture<'a, SysResult<T>>`.
 fn signature(m: &Method) -> String {
-    let mut params = vec!["&self".to_string(), "caller: &Caller<'_>".to_string()];
+    let mut params = vec!["&'a self".to_string(), "caller: &'a Caller<'_>".to_string()];
     params.extend(m.typed_params());
     format!(
-        "async fn {}({}) -> {}",
+        "fn {}<'a>({}) -> MaybeFuture<'a, {}>",
         m.name,
         params.join(", "),
         m.result_type()
@@ -449,12 +450,12 @@ fn pattern(m: &Method) -> String {
 }
 
 const TRAIT_DOCS: &str = r#"
-/// One async method per import of the guest ABI, with typed arguments.
+/// One immediate-or-deferred method per import of the guest ABI, with typed arguments.
 ///
 /// Every method fails with `ENOSYS` unless overridden, so an implementation (the kernel, a test
 /// double) provides only the syscalls it supports.
 // The futures are deliberately not `Send`: wasmer's async host calls are not.
-#[allow(async_fn_in_trait, unused_variables)]
+#[allow(unused_variables)]
 "#;
 
 const LAYER: &str = r#"
@@ -462,14 +463,13 @@ const LAYER: &str = r#"
 ///
 /// A layer is written for the syscalls `S` it runs in front of: a generic one (a tracer) for
 /// every `S`, one that needs more of what it wraps (the kernel's syscall entry) for that type.
-#[allow(async_fn_in_trait)]
 pub trait Layer<S: Syscalls> {
-    async fn call(
-        &self,
-        caller: &Caller<'_>,
+    fn call<'a>(
+        &'a self,
+        caller: &'a Caller<'_>,
         call: Syscall,
-        next: &S,
-    ) -> SysResult<SyscallRet>;
+        next: &'a S,
+    ) -> MaybeFuture<'a, SysResult<SyscallRet>>;
 }
 
 /// Runs `layer` in front of `inner`.
@@ -560,25 +560,35 @@ pub(crate) mod tests {
         )
         .unwrap();
         for want in [
-            "async fn read(&self, caller: &Caller<'_>, fd: Fd, buf: UserSliceMut) -> SysResult<u32> { Err(Errno::ENOSYS.into()) }",
-            "async fn openat(&self, caller: &Caller<'_>, dfd: Fd, path: Cstr) -> SysResult<Fd>",
-            "async fn exit_group(&self, caller: &Caller<'_>, error_code: i32) -> SysResult<()>",
-            "async fn getpid(&self, caller: &Caller<'_>) -> SysResult<i32>",
+            "fn read<'a>(&'a self, caller: &'a Caller<'_>, fd: Fd, buf: UserSliceMut) -> MaybeFuture<'a, SysResult<u32>> { MaybeFuture::Ready(Err(Errno::ENOSYS.into())) }",
+            "fn openat<'a>(&'a self, caller: &'a Caller<'_>, dfd: Fd, path: Cstr) -> MaybeFuture<'a, SysResult<Fd>>",
+            "fn exit_group<'a>(&'a self, caller: &'a Caller<'_>, error_code: i32) -> MaybeFuture<'a, SysResult<()>>",
+            "fn getpid<'a>(&'a self, caller: &'a Caller<'_>) -> MaybeFuture<'a, SysResult<i32>>",
             "Read { fd: Fd, buf: UserSliceMut },",
             "Getpid,\n",
             "ExitGroup,\n",
             "Read(u32),",
-            "Syscall::ExitGroup { error_code } => { syscalls.exit_group(caller, error_code).await?; SyscallRet::ExitGroup }",
-            "Syscall::Getpid => SyscallRet::Getpid(syscalls.getpid(caller).await?),",
+            "Syscall::ExitGroup { error_code } => syscalls.exit_group(caller, error_code).map(|ret| ret.map(|()| SyscallRet::ExitGroup)),",
+            "Syscall::Getpid => syscalls.getpid(caller).map(|ret| ret.map(SyscallRet::Getpid)),",
             "SyscallRet::Openat(ret) => Ok(ret),",
             "_ => mismatch(\"exit_group\"),",
             "/// Wasm import `m.read` (riscv32 nr 63).",
             "use wasixv2_abi::{Cstr, Errno, Fd};",
-            "use crate::{caller::Caller, memory::UserSliceMut, result::SysResult};",
+            "use crate::{caller::Caller, memory::UserSliceMut, result::SysResult, MaybeFuture};",
             "fn take_image(&self, task: crate::TaskId) -> Option<crate::Image> {",
         ] {
             assert!(out.contains(want), "missing `{want}` in:\n{out}");
         }
+    }
+
+    #[test]
+    fn dispatch_selects_before_building_a_continuation() {
+        let out = generate(&model("getpid: func() -> slong;"), "t.wit").unwrap();
+        assert!(out.contains("pub fn dispatch<'a, S: Syscalls + ?Sized>"));
+        assert!(!out.contains("async fn"));
+        assert!(!out.contains(".await"));
+        assert!(out.contains("MaybeFuture::Ready(Err(Errno::ENOSYS.into()))"));
+        assert!(out.contains("self.layer.call(caller, call, &self.inner).map"));
     }
 
     #[test]
