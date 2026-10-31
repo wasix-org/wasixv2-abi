@@ -145,7 +145,17 @@ impl Gen<'_> {
         self.line("{");
         self.line("let (syscalls, task) = caller_parts(&env).await;");
         self.line("let memory = GuestMemory { env: &env };");
-        self.line("let caller = Caller::new(task, &memory);");
+        if matches!(
+            m.name.as_str(),
+            "dl_open" | "dl_sym" | "dl_close" | "dl_next_init"
+        ) {
+            self.line("let dynamic_linker = crate::GuestDynamicLinker::new(&env);");
+            self.line(
+                "let caller = Caller::new(task, &memory).with_dynamic_linker(&dynamic_linker);",
+            );
+        } else {
+            self.line("let caller = Caller::new(task, &memory);");
+        }
         // Qualified, since method syntax would find `Arc::clone` before `Syscalls::clone`.
         let mut args = vec!["&*syscalls".to_string(), "&caller".to_string()];
         args.extend(m.params.iter().map(|p| self.arg(m, p)));

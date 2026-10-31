@@ -214,3 +214,27 @@ fn watch_queue_uapi_is_available_to_consumers() {
         assert!(generated.contains(definition), "missing {definition}");
     }
 }
+
+#[test]
+fn only_loader_imports_attach_borrowed_engine_authority() {
+    let source =
+        wasixv2_codegen::generate_exec(&repo_root().join(WIT), WIT, Target::WASM32).unwrap();
+    assert_eq!(
+        source
+            .matches("with_dynamic_linker(&dynamic_linker)")
+            .count(),
+        4
+    );
+    for name in ["dl_open", "dl_sym", "dl_close", "dl_next_init"] {
+        let function = source
+            .split(&format!("async fn {name}<"))
+            .nth(1)
+            .unwrap()
+            .split("\nasync fn ")
+            .next()
+            .unwrap();
+        assert!(function.contains("crate::GuestDynamicLinker::new(&env)"));
+        assert!(function.contains(&format!("Syscalls::{name}(")));
+        assert!(function.contains("return_to_guest("));
+    }
+}
