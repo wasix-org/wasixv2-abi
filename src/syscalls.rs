@@ -519,8 +519,12 @@ impl<L, S: crate::Control> crate::Control for Layered<L, S> {
         self.inner.group_wait(task)
     }
 
-    fn thread_join<'a>(&'a self, caller: &'a crate::Caller<'_>, tid: i32) -> crate::LocalFuture<'a, crate::SysResult<()>> {
-        self.inner.thread_join(caller, tid)
+    fn capture_thread_completion(&self, task: crate::TaskId, tid: i32) -> Result<Option<crate::ThreadCompletion>, crate::Errno> {
+        self.inner.capture_thread_completion(task, tid)
+    }
+
+    fn wait_thread_completion<'a>(&'a self, caller: &'a crate::Caller<'_>, completion: &'a crate::ThreadCompletion) -> crate::LocalFuture<'a, crate::SysResult<()>> {
+        self.inner.wait_thread_completion(caller, completion)
     }
 
     fn fault(&self, task: crate::TaskId, signal: i32) -> bool {
