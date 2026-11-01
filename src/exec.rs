@@ -145,7 +145,19 @@ impl Gen<'_> {
         self.line("{");
         self.line("let (syscalls, task) = caller_parts(&env).await;");
         self.line("let memory = GuestMemory { env: &env };");
-        if matches!(
+        let functions = matches!(
+            m.name.as_str(),
+            "call_dynamic"
+                | "reflect_signature"
+                | "closure_allocate"
+                | "closure_prepare"
+                | "closure_free"
+        );
+        if functions {
+            self.line("let unwind = crate::GuestUnwind::default();");
+            self.line("let functions = crate::GuestFunctionOperations::new(&env, &unwind);");
+            self.line("let caller = Caller::new(task, &memory).with_functions(&functions);");
+        } else if matches!(
             m.name.as_str(),
             "dl_open" | "dl_sym" | "dl_close" | "dl_next_init"
         ) {
@@ -168,6 +180,9 @@ impl Gen<'_> {
             m.name,
             args.join(", ")
         );
+        if functions {
+            self.line("let ret = unwind.finish(&env, ret).await?;");
+        }
         match &m.ret {
             Some(t) => {
                 let ret = match encode(self.model, t, "v", m.raw_ret) {
