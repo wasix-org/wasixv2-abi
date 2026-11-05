@@ -225,8 +225,26 @@ fn raw_params(model: &Model, f: &Function) -> Result<Vec<RawParam>> {
 }
 
 impl Method<'_> {
+    /// Only host vector counts widen; their guest and tracer registers remain riscv32.
+    pub fn wide_host_result(&self) -> bool {
+        matches!(
+            self.name.as_str(),
+            "readv"
+                | "writev"
+                | "preadv"
+                | "pwritev"
+                | "preadv2"
+                | "pwritev2"
+                | "sendmsg"
+                | "recvmsg"
+        )
+    }
+
     /// The trait method's Rust return type.
     pub fn result_type(&self) -> String {
+        if self.wide_host_result() {
+            return "SysResult<u64>".to_string();
+        }
         match &self.ret {
             None => "SysResult<()>".to_string(),
             Some(t) => format!("SysResult<{}>", ty(t)),
@@ -235,16 +253,42 @@ impl Method<'_> {
 
     /// `Ok` payload type, `None` for `()`.
     pub fn ret_type(&self) -> Option<String> {
+        if self.wide_host_result() {
+            return Some("u64".to_string());
+        }
         self.ret.as_ref().map(ty)
+    }
+
+    /// Engine packets retain their original capacity at the host boundary. The raw
+    /// Wasm ABI remains wasm32; only these engine-owned host descriptors widen.
+    pub fn packet_type(&self, param: &Param) -> Option<&'static str> {
+        match (self.name.as_str(), param) {
+            ("call_dynamic" | "reflect_signature" | "dl_open" | "dl_sym", Param::Slice { .. }) => {
+                Some("RawGuestBuffer")
+            }
+            ("reflect_signature", Param::Value { name, .. }) if name == "result" => {
+                Some("RawGuestPointer")
+            }
+            ("dl_open", Param::Value { name, .. }) if name == "handle" => Some("RawGuestPointer"),
+            ("dl_sym", Param::Value { name, .. }) if name == "addr" => Some("RawGuestPointer"),
+            _ => None,
+        }
     }
 
     /// `name: Type` for each trait param.
     pub fn typed_params(&self) -> Vec<String> {
         self.params
             .iter()
-            .map(|p| match p {
-                Param::Value { name, ty: t, .. } => format!("{name}: {}", ty(t)),
-                Param::Slice { name, mutable, .. } => format!("{name}: {}", slice_type(*mutable)),
+            .map(|p| {
+                if let Some(ty) = self.packet_type(p) {
+                    return format!("{}: {ty}", p.name());
+                }
+                match p {
+                    Param::Value { name, ty: t, .. } => format!("{name}: {}", ty(t)),
+                    Param::Slice { name, mutable, .. } => {
+                        format!("{name}: {}", slice_type(*mutable))
+                    }
+                }
             })
             .collect()
     }
@@ -285,7 +329,9 @@ pub fn signature_types(methods: &[Method]) -> BTreeSet<String> {
     };
     for m in methods {
         for p in &m.params {
-            if let Param::Value { ty, .. } = p {
+            if m.packet_type(p).is_none()
+                && let Param::Value { ty, .. } = p
+            {
                 add(ty);
             }
         }
@@ -330,6 +376,9 @@ pub fn decode_types(model: &Model, methods: &[Method]) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     for m in methods {
         for p in &m.params {
+            if m.packet_type(p).is_some() {
+                continue;
+            }
             let Param::Value { raw, .. } = p else {
                 continue;
             };
@@ -345,4 +394,12 @@ pub fn decode_types(model: &Model, methods: &[Method]) -> BTreeSet<String> {
         }
     }
     out
+}
+
+/// Host-only packet types used by the shaped methods.
+pub fn packet_types(methods: &[Method]) -> BTreeSet<&'static str> {
+    methods
+        .iter()
+        .flat_map(|m| m.params.iter().filter_map(|p| m.packet_type(p)))
+        .collect()
 }

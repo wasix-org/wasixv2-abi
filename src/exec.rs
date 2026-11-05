@@ -8,7 +8,9 @@ use anyhow::{Result, bail};
 
 use crate::ir::Model;
 use crate::rust::{header, prim};
-use crate::shape::{Method, Param, decode, decode_types, encode, methods, slice_type, uses_slice};
+use crate::shape::{
+    Method, Param, decode, decode_types, encode, methods, packet_types, slice_type, uses_slice,
+};
 
 /// Items the generated module names, which ABI types must not shadow.
 const LOCAL_ITEMS: &[&str] = &[
@@ -28,6 +30,8 @@ const LOCAL_ITEMS: &[&str] = &[
     "TaskId",
     "UserSlice",
     "UserSliceMut",
+    "RawGuestBuffer",
+    "RawGuestPointer",
 ];
 
 /// Generates the (unformatted) module for `model`.
@@ -68,6 +72,7 @@ impl Gen<'_> {
             let _ = writeln!(self.out, "use wasixv2_abi::{{{}}};", types.join(", "));
         }
         let mut items = vec!["Caller", "Control", "Syscalls"];
+        items.extend(packet_types(methods));
         items.extend(
             [false, true]
                 .into_iter()
@@ -185,7 +190,12 @@ impl Gen<'_> {
         }
         match &m.ret {
             Some(t) => {
-                let ret = match encode(self.model, t, "v", m.raw_ret) {
+                let encoded = if m.wide_host_result() {
+                    Some(format!("v as {}", prim(m.raw_ret)))
+                } else {
+                    encode(self.model, t, "v", m.raw_ret)
+                };
+                let ret = match encoded {
                     Some(expr) => format!("ret.map(|v| {expr})"),
                     None => "ret".to_string(),
                 };
@@ -215,6 +225,15 @@ impl Gen<'_> {
     }
 
     fn arg(&self, m: &Method, p: &Param) -> String {
+        if let Some(ty) = m.packet_type(p) {
+            return match p {
+                Param::Value { raw, .. } => format!("{ty}::from32({} as u32)", m.raw[*raw].name),
+                Param::Slice { ptr, len, .. } => format!(
+                    "{ty}::from32({} as u32, {} as u32)",
+                    m.raw[*ptr].name, m.raw[*len].name
+                ),
+            };
+        }
         match p {
             Param::Value { raw, .. } => decode(self.model, &m.raw[*raw]),
             Param::Slice {
@@ -233,6 +252,20 @@ impl Gen<'_> {
 mod tests {
     use super::*;
     use crate::syscalls::tests::model;
+
+    #[test]
+    fn function_packet_host_width_does_not_change_wasm32_ingress() {
+        let model = model(
+            "/// @slice(values, values-len)\n/// @slice(results, results-len)\ncall-dynamic: func(function: u32, values: cstr, values-len: usize, results: buf, results-len: usize, flags: u32) -> slong;",
+        );
+        let imports = generate(&model, "t.wit").unwrap();
+        assert!(imports.contains("function: i32, values: i32, values_len: i32, results: i32, results_len: i32, flags: i32"));
+        assert!(imports.contains("RawGuestBuffer::from32(values as u32, values_len as u32)"));
+        let host = crate::syscalls::generate(&model, "t.wit").unwrap();
+        assert!(host.contains("values: RawGuestBuffer, results: RawGuestBuffer"));
+        assert!(host.contains("u64::from(values.addr)"));
+        assert!(host.contains("u64::from(results.len)"));
+    }
 
     #[test]
     fn shims_decode_and_encode() {

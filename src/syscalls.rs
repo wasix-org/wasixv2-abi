@@ -9,7 +9,8 @@ use anyhow::{Result, bail};
 use crate::ir::{Model, Prim, SplitOrder, TyRef};
 use crate::rust::{cast, header, push_docs, ty};
 use crate::shape::{
-    Method, Param, RawParam, Repr, decode, methods, repr, signature_types, slice_type, uses_slice,
+    Method, Param, RawParam, Repr, decode, methods, packet_types, repr, signature_types,
+    slice_type, uses_slice,
 };
 
 /// Items of `wasixv2-syscalls` the generated module names, which ABI types must not shadow.
@@ -26,6 +27,8 @@ const LOCAL_ITEMS: &[&str] = &[
     "TaskId",
     "UserSlice",
     "UserSliceMut",
+    "RawGuestBuffer",
+    "RawGuestPointer",
 ];
 
 /// Generates the (unformatted) module for `model`.
@@ -73,7 +76,11 @@ impl Gen {
         };
         let _ = writeln!(
             self.out,
-            "use crate::{{caller::Caller, {memory}result::SysResult, MaybeFuture}};"
+            "use crate::{{caller::Caller, {memory}result::SysResult, MaybeFuture{}}};",
+            packet_types(methods)
+                .into_iter()
+                .map(|ty| format!(", {ty}"))
+                .collect::<String>()
         );
     }
 
@@ -147,7 +154,15 @@ impl Gen {
         self.line("match *self {");
         for m in methods {
             let value = match &m.ret {
-                Some(t) => format!("SyscallRet::{}(v) => {}", m.variant, encode_raw(model, t)),
+                Some(t) => format!(
+                    "SyscallRet::{}(v) => {}",
+                    m.variant,
+                    if m.wide_host_result() {
+                        "v as i32 as i64".to_string()
+                    } else {
+                        encode_raw(model, t)
+                    }
+                ),
                 None => format!("SyscallRet::{} => 0", m.variant),
             };
             let _ = writeln!(self.out, "{value},");
@@ -213,11 +228,36 @@ impl Gen {
         self.line("match self {");
         for m in methods {
             let value = match &m.ret {
-                Some(t) => format!("SyscallRet::{}({})", m.variant, decode_raw(model, t)),
+                Some(t) => format!(
+                    "SyscallRet::{}({})",
+                    m.variant,
+                    if m.wide_host_result() {
+                        format!("({}) as u64", decode_raw(model, t))
+                    } else {
+                        decode_raw(model, t)
+                    }
+                ),
                 None => format!("SyscallRet::{}", m.variant),
             };
             let _ = writeln!(self.out, "{} => {value},", wildcard(m));
         }
+        self.line("}");
+        self.line("}");
+        self.line("}");
+        self.line("");
+        self.line("impl Syscall {");
+        self.line("/// Preserve a matching typed host vector result; an edited call uses the original native-wire codec.");
+        self.line("pub fn normalize_host_ret(&self, ret: SyscallRet) -> SyscallRet {");
+        self.line("match (self, ret) {");
+        for m in methods.iter().filter(|m| m.wide_host_result()) {
+            let _ = writeln!(
+                self.out,
+                "({}, ret @ SyscallRet::{}(_)) => ret,",
+                wildcard(m),
+                m.variant
+            );
+        }
+        self.line("(_, ret) => self.ret_from_raw(ret.to_raw()),");
         self.line("}");
         self.line("}");
         self.line("}");
@@ -325,6 +365,13 @@ fn registers(model: &Model, m: &Method) -> Vec<String> {
             _ => None,
         });
         let name = name.expect("every raw param is a value or part of a slice");
+        if m.params
+            .iter()
+            .any(|p| p.name() == name && m.packet_type(p) == Some("RawGuestPointer"))
+        {
+            out.push(format!("{name}.addr()"));
+            continue;
+        }
         let (value, p) = match repr(model, &r.ty) {
             Repr::Int(p) => (name.to_string(), p),
             Repr::Ptr => (format!("{name}.addr()"), Prim::U32),
@@ -384,29 +431,43 @@ fn from_registers(model: &Model, m: &Method) -> Option<String> {
     let fields: Vec<String> = m
         .params
         .iter()
-        .map(|p| match p {
-            Param::Value { name, raw: i, .. } => {
-                let r = &m.raw[*i];
-                let shaped = RawParam {
-                    name: raw[*i].clone(),
-                    ty: r.ty.clone(),
-                    prim: r.prim,
+        .map(|p| {
+            if let Some(ty) = m.packet_type(p) {
+                return match p {
+                    Param::Value { name, raw: i, .. } => {
+                        format!("{name}: {ty}::from32({} as u32)", raw[*i])
+                    }
+                    Param::Slice { name, ptr, len, .. } => format!(
+                        "{name}: {ty}::from32({} as u32, {} as u32)",
+                        reg[*ptr].as_ref().expect("32-bit packet pointer"),
+                        reg[*len].as_ref().expect("32-bit packet length")
+                    ),
                 };
-                format!("{name}: {}", decode(model, &shaped))
             }
-            Param::Slice {
-                name,
-                mutable,
-                ptr,
-                len,
-            } => {
-                let at = |i: usize| reg[i].clone().expect("a slice's halves are 32-bit");
-                format!(
-                    "{name}: {}::new({} as u32, {} as u32)",
-                    slice_type(*mutable),
-                    at(*ptr),
-                    at(*len)
-                )
+            match p {
+                Param::Value { name, raw: i, .. } => {
+                    let r = &m.raw[*i];
+                    let shaped = RawParam {
+                        name: raw[*i].clone(),
+                        ty: r.ty.clone(),
+                        prim: r.prim,
+                    };
+                    format!("{name}: {}", decode(model, &shaped))
+                }
+                Param::Slice {
+                    name,
+                    mutable,
+                    ptr,
+                    len,
+                } => {
+                    let at = |i: usize| reg[i].clone().expect("a slice's halves are 32-bit");
+                    format!(
+                        "{name}: {}::new({} as u32, {} as u32)",
+                        slice_type(*mutable),
+                        at(*ptr),
+                        at(*len)
+                    )
+                }
             }
         })
         .collect();
@@ -592,6 +653,22 @@ pub(crate) mod tests {
             "use wasixv2_abi::{Cstr, Errno, Fd};",
             "use crate::{caller::Caller, memory::UserSliceMut, result::SysResult, MaybeFuture};",
             "fn take_image(&self, task: crate::TaskId) -> Option<crate::Image> {",
+        ] {
+            assert!(out.contains(want), "missing `{want}` in:\n{out}");
+        }
+    }
+
+    #[test]
+    fn host_vector_result_normalization_is_separate_from_native_registers() {
+        let out = generate(&model(
+            "/// @nr(65)\n/// @returns(u32)\nreadv: func(fd: fd, vec: uptr, count: usize) -> slong;\ngetpid: func() -> slong;"
+        ), "t.wit").unwrap();
+        for want in [
+            "Readv(u64)",
+            "SyscallRet::Readv(v) => v as i32 as i64",
+            "Syscall::Readv { .. } => SyscallRet::Readv((raw as u32) as u64)",
+            "(Syscall::Readv { .. }, ret @ SyscallRet::Readv(_)) => ret",
+            "(_, ret) => self.ret_from_raw(ret.to_raw())",
         ] {
             assert!(out.contains(want), "missing `{want}` in:\n{out}");
         }
