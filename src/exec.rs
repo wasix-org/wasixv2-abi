@@ -135,14 +135,31 @@ impl Gen<'_> {
         if params.len() > 7 {
             self.line("#[allow(clippy::too_many_arguments)]");
         }
-        let _ = writeln!(
-            self.out,
-            "async fn {}<S>({}) -> Result<{result}, RuntimeError>",
-            m.name,
-            params.join(", ")
+        let contexts = matches!(
+            m.name.as_str(),
+            "context_create" | "context_switch" | "context_destroy"
         );
+        let _ = if contexts {
+            writeln!(
+                self.out,
+                "fn {}<S>({}) -> impl std::future::Future<Output = Result<{result}, RuntimeError>> + 'static",
+                m.name,
+                params.join(", ")
+            )
+        } else {
+            writeln!(
+                self.out,
+                "async fn {}<S>({}) -> Result<{result}, RuntimeError>",
+                m.name,
+                params.join(", ")
+            )
+        };
         self.line("where S: Syscalls + Control + 'static,");
         self.line("{");
+        if contexts {
+            self.line("let contexts_supported = crate::context_operations_supported();");
+            self.line("async move {");
+        }
         self.line("let (syscalls, task) = caller_parts(&env).await;");
         self.line("let memory = GuestMemory { env: &env };");
         let functions = matches!(
@@ -152,10 +169,17 @@ impl Gen<'_> {
                 | "closure_allocate"
                 | "closure_prepare"
                 | "closure_free"
+                | "context_create"
+                | "context_switch"
+                | "context_destroy"
         );
         if functions {
-            self.line("let unwind = crate::GuestUnwind::default();");
-            self.line("let functions = crate::GuestFunctionOperations::new(&env, &unwind);");
+            self.line("let unwind = crate::GuestUnwind::new(&env).await;");
+            if contexts {
+                self.line("let functions = crate::GuestFunctionOperations::new(&env, &unwind).with_context_support(contexts_supported);");
+            } else {
+                self.line("let functions = crate::GuestFunctionOperations::new(&env, &unwind);");
+            }
             self.line("let caller = Caller::new(task, &memory).with_functions(&functions);");
         } else if matches!(
             m.name.as_str(),
@@ -168,6 +192,7 @@ impl Gen<'_> {
         } else {
             self.line("let caller = Caller::new(task, &memory);");
         }
+        self.line("let caller = caller.with_process_fork_allowed(crate::process_fork_allowed(&env).await);");
         // Qualified, since method syntax would find `Arc::clone` before `Syscalls::clone`.
         let mut args = vec!["&*syscalls".to_string(), "&caller".to_string()];
         args.extend(m.params.iter().map(|p| self.arg(m, p)));
@@ -211,6 +236,9 @@ impl Gen<'_> {
             }
         }
         self.line("}");
+        if contexts {
+            self.line("}");
+        }
         self.line("}");
     }
 
